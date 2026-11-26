@@ -15,6 +15,11 @@ final class PlaylistsModel {
         error = nil
         do {
             items = try await YTMusicClient.shared.libraryPlaylists()
+            // Warm the list art and every playlist's interior so opening
+            // one never shows a spinner.
+            ArtworkCache.shared.prefetch(items.map { $0.art(120) })
+            let toWarm = items
+            Task { await PageCache.shared.warmAlbums(toWarm) }
         } catch {
             self.error = error.localizedDescription
         }
@@ -94,6 +99,7 @@ final class HistoryModel {
         error = nil
         do {
             sections = try await YTMusicClient.shared.history()
+            ArtworkCache.shared.prefetch(sections.flatMap(\.tracks).prefix(80).map { $0.art(96) })
         } catch {
             self.error = error.localizedDescription
         }

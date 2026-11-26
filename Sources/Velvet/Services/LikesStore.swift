@@ -25,6 +25,12 @@ final class LikesStore {
         }
     }
 
+    /// Adopt an already-fetched liked list instead of fetching again.
+    func seed(_ trackIds: Set<String>) {
+        ids = trackIds
+        loaded = true
+    }
+
     func reset() {
         ids = []
         loaded = false

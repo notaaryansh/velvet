@@ -7,7 +7,7 @@ import SwiftUI
 /// red tint over the dark backdrop, not a picture.
 struct WavesBackground: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
             Canvas { ctx, size in
                 let t = timeline.date.timeIntervalSinceReferenceDate
 
@@ -200,19 +200,10 @@ struct TrackRow: View {
             .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.black.opacity(0.08)))
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(track.title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(isCurrent ? Velvet.accent : .primary)
-                        .lineLimit(1)
-                    if let plays = track.plays {
-                        Text(plays)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    }
-                }
+                Text(track.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isCurrent ? Velvet.accent : .primary)
+                    .lineLimit(1)
                 Text(track.artist)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
@@ -221,23 +212,41 @@ struct TrackRow: View {
 
             Spacer()
 
-            // Like: appears on hover, stays visible once liked.
-            if hovering || isLiked {
-                Button {
-                    Task { await likes.toggle(track) }
-                } label: {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 13))
-                        .foregroundStyle(isLiked ? AnyShapeStyle(Velvet.accent) : AnyShapeStyle(.secondary))
-                }
-                .buttonStyle(.plain)
-                .help(isLiked ? "Remove from Liked Songs" : "Add to Liked Songs")
+            // Trailing columns, each fixed so every row lines up:
+            // plays · heart · duration.
+            if let plays = track.plays {
+                Text(plays)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .frame(minWidth: 78, alignment: .trailing)
             }
 
-            Text(track.durationText)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            // Like: appears on hover, stays visible once liked. The slot is
+            // always reserved so the columns never shift.
+            ZStack {
+                if hovering || isLiked {
+                    Button {
+                        Task { await likes.toggle(track) }
+                    } label: {
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isLiked ? AnyShapeStyle(Velvet.accent) : AnyShapeStyle(.secondary))
+                    }
+                    .buttonStyle(.plain)
+                    .help(isLiked ? "Remove from Liked Songs" : "Add to Liked Songs")
+                }
+            }
+            .frame(width: 22)
+
+            if !track.durationText.isEmpty {
+                Text(track.durationText)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .frame(width: 44, alignment: .trailing)
+            }
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 6)

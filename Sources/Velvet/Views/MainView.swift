@@ -182,6 +182,33 @@ final class DiscoverModel {
     var isLoading = false
     var loaded = false
 
+    var chartSections: [HomeSection] = []
+    var chartsLoading = false
+    var newReleaseSections: [HomeSection] = []
+    var newReleasesLoading = false
+    @ObservationIgnored private var chartsLoaded = false
+    @ObservationIgnored private var newReleasesLoaded = false
+
+    /// Lazy per-tab loading; each browse tab fetches once per session.
+    func load(_ tab: DiscoverTab) async {
+        switch tab {
+        case .home:
+            if !loaded { await reload() }
+        case .charts:
+            guard !chartsLoaded else { return }
+            chartsLoaded = true
+            chartsLoading = true
+            chartSections = (try? await YTMusicClient.shared.charts()) ?? []
+            chartsLoading = false
+        case .newReleases:
+            guard !newReleasesLoaded else { return }
+            newReleasesLoaded = true
+            newReleasesLoading = true
+            newReleaseSections = (try? await YTMusicClient.shared.newReleases()) ?? []
+            newReleasesLoading = false
+        }
+    }
+
     func reload() async {
         isLoading = true
         defer { isLoading = false; loaded = true }
@@ -197,6 +224,10 @@ final class DiscoverModel {
         sections = await homeSections
         topArtists = await artists
         suggested = await picks
+
+        // Warm the top artists' full pages so tapping one is instant.
+        let toWarm = topArtists
+        Task { await PageCache.shared.warmArtists(toWarm) }
     }
 
     /// Resolve the names of the user's most-played artists into navigable
@@ -252,13 +283,20 @@ struct MainView: View {
     @State private var historyModel = HistoryModel()
     @State private var auth = AuthManager.shared
     @State private var player = PlayerService.shared
+    @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
 
     var body: some View {
         ZStack {
             // One backdrop for the whole window — the icon's waves breathe
             // behind the sidebar and content alike.
             VisualEffect(material: .underWindowBackground).ignoresSafeArea()
-            WavesBackground().ignoresSafeArea()
+            if wavesEnabled {
+                // Heavy blur melts the wave edges into soft color fields.
+                WavesBackground()
+                    .blur(radius: 55)
+                    .scaleEffect(1.12)   // hide the blur's faded edges
+                    .ignoresSafeArea()
+            }
 
             HStack(spacing: 0) {
                 // Sidebar runs the full window height; the player bar lives
@@ -289,16 +327,15 @@ struct MainView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // Account avatar floats top-right on every page, in line
-                    // with the search row.
-                    .overlay(alignment: .topTrailing) {
-                        AccountMenu(auth: auth)
-                            .padding(.top, 28)
-                            .padding(.trailing, 22)
-                    }
 
-                    PlayerBar()
+                    // The bar exists only while something is loaded; it
+                    // slides up when the first song starts.
+                    if player.current != nil {
+                        PlayerBar()
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .animation(.snappy(duration: 0.3), value: player.current != nil)
             }
 
             // Hidden playback engine.
@@ -311,9 +348,22 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
+        // Warm every top-level page at launch so switching tabs or sidebar
+        // sections never shows a loading state.
+        .task {
+            async let home: Void = discoverModel.load(.home)
+            async let charts: Void = discoverModel.load(.charts)
+            async let fresh: Void = discoverModel.load(.newReleases)
+            _ = await (home, charts, fresh)
+        }
         .task(id: auth.isLoggedIn) {
             if auth.isLoggedIn {
-                await LikesStore.shared.ensureLoaded()
+                async let liked: Void = likedModel.reload()
+                async let playlists: Void = playlistsModel.reload()
+                async let history: Void = historyModel.reload()
+                _ = await (liked, playlists, history)
+                // Hearts share the liked fetch instead of re-downloading it.
+                LikesStore.shared.seed(Set(likedModel.tracks.map(\.id)))
             } else {
                 LikesStore.shared.reset()
             }
@@ -327,6 +377,9 @@ struct Sidebar: View {
     @Binding var section: NavSection
     var auth: AuthManager
     var onReTap: () -> Void = {}
+    @State private var showSettings = false
+    @State private var hoverAccount = false
+    @State private var hoverSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -368,51 +421,144 @@ struct Sidebar: View {
             .padding(.horizontal, 10)
 
             Spacer()
-        }
-    }
-}
 
-/// Top-right profile picture; clicking it drops down the account menu.
-struct AccountMenu: View {
-    var auth: AuthManager
+            Divider().padding(.horizontal, 12)
 
-    var body: some View {
-        Group {
-            if !auth.resolved {
-                ProgressView().controlSize(.small).scaleEffect(0.7)
-                    .frame(width: 30, height: 30)
-            } else {
-                Menu {
-                    if auth.isLoggedIn {
+            // Footer rows share the nav items' exact geometry: 20pt icon
+            // column, same padding, same hover treatment.
+            VStack(alignment: .leading, spacing: 2) {
+                if !auth.resolved {
+                    SidebarFooterRow(hovering: false) {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                            .frame(width: 20)
+                        Text("Checking session…")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                } else if auth.isLoggedIn {
+                    Menu {
                         Text(auth.accountName ?? "Signed in")
-                        if let handle = auth.accountHandle {
-                            Text(handle)
-                        }
+                        if let handle = auth.accountHandle { Text(handle) }
                         Divider()
                         Button("Sign Out", role: .destructive) {
                             Task { await auth.signOut() }
                         }
-                    } else {
-                        Button("Sign In") { auth.showLogin = true }
+                    } label: {
+                        SidebarFooterRow(hovering: hoverAccount) {
+                            Artwork(url: auth.accountPhoto) {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 20, height: 20)
+                            .clipShape(Circle())
+                            Text(auth.accountName ?? "Signed in")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .lineLimit(1)
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
-                } label: {
-                    Artwork(url: auth.accountPhoto) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.secondary)
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+                    .onHover { hoverAccount = $0 }
+                } else {
+                    Button {
+                        auth.showLogin = true
+                    } label: {
+                        SidebarFooterRow(hovering: hoverAccount) {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Velvet.accent)
+                                .frame(width: 20)
+                            Text("Sign in")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Velvet.accent)
+                            Spacer()
+                        }
                     }
-                    .frame(width: 30, height: 30)
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.14)))
-                    .contentShape(Circle())
+                    .buttonStyle(.plain)
+                    .onHover { hoverAccount = $0 }
                 }
-                .menuStyle(.button)
+
+                Button {
+                    showSettings = true
+                } label: {
+                    SidebarFooterRow(hovering: hoverSettings) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20)
+                        Text("Settings")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.primary.opacity(0.85))
+                        Spacer()
+                    }
+                }
                 .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help(auth.isLoggedIn ? (auth.accountName ?? "Account") : "Sign in")
+                .onHover { hoverSettings = $0 }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .sheet(isPresented: $showSettings) { SettingsSheet() }
+        }
+    }
+}
+
+/// Row chrome identical to SidebarItem: 10pt padding, 7pt rounded hover.
+struct SidebarFooterRow<Content: View>: View {
+    var hovering: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 10, content: content)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(hovering ? Color.primary.opacity(0.045) : .clear)
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+/// Minimal settings: the knobs that actually exist today.
+struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings")
+                .font(.system(size: 17, weight: .bold))
+
+            Toggle("Ambient wave background", isOn: $wavesEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Button("Clear Recent Searches") {
+                UserDefaults.standard.removeObject(forKey: "velvet.recentSearches")
+            }
+            .controlSize(.small)
+
+            Spacer()
+
+            HStack {
+                Text("Velvet 0.1.0")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
+        .padding(20)
+        .frame(width: 320, height: 220)
     }
 }
 

@@ -19,6 +19,7 @@ struct DiscoverView: View {
     @State private var recents = RecentsStore.shared
     @State private var navPath: [BrowseItem] = []
     @State private var searchExpanded = false
+    @State private var tab: DiscoverTab = .home
     @FocusState private var searchFocused: Bool
 
     private var searching: Bool {
@@ -46,7 +47,14 @@ struct DiscoverView: View {
                     if searching {
                         searchResults
                     } else {
-                        feed
+                        switch tab {
+                        case .home:
+                            feed
+                        case .charts:
+                            shelfFeed(model.chartSections, loading: model.chartsLoading)
+                        case .newReleases:
+                            shelfFeed(model.newReleaseSections, loading: model.newReleasesLoading)
+                        }
                     }
                 }
 
@@ -110,9 +118,51 @@ struct DiscoverView: View {
         searchExpanded = false
     }
 
-    /// Collapsed: a round search button. Expanded: the full field.
-    /// One container animates between the two widths.
+    /// Top row: browse tabs on the left, search on the right. Opening
+    /// search hides the tabs and expands into the field; collapsing (click
+    /// away while empty, or Esc) brings the tabs back.
     private var searchBar: some View {
+        HStack(spacing: 10) {
+            if !searchExpanded {
+                HStack(spacing: 8) {
+                    ForEach(DiscoverTab.allCases) { t in
+                        Button {
+                            tab = t
+                            Task { await model.load(t) }
+                        } label: {
+                            Text(t.rawValue)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(tab == t ? .white : .primary)
+                                .padding(.horizontal, 13)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(
+                                    tab == t ? AnyShapeStyle(Velvet.accent)
+                                             : AnyShapeStyle(Color.primary.opacity(0.07))))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .transition(.opacity)
+                Spacer(minLength: 10)
+            }
+            searchControl
+            if searchExpanded {
+                Spacer(minLength: 0)
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: searchExpanded)
+        .padding(.horizontal, 22)
+        .padding(.top, 30)
+        .padding(.bottom, 12)
+        .onChange(of: searchFocused) { _, focused in
+            // Clicking away with nothing typed folds the bar back up.
+            if !focused && search.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchExpanded = false
+            }
+        }
+    }
+
+    private var searchControl: some View {
         HStack(spacing: 7) {
             Button {
                 if !searchExpanded { expandSearch() }
@@ -162,16 +212,38 @@ struct DiscoverView: View {
         .background(RoundedRectangle(cornerRadius: 17, style: .continuous)
             .fill(Color.primary.opacity(0.06)))
         .frame(maxWidth: searchExpanded ? 420 : 36, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.snappy(duration: 0.25), value: searchExpanded)
-        .padding(.horizontal, 22)
-        .padding(.top, 30)
-        .padding(.bottom, 12)
-        .onChange(of: searchFocused) { _, focused in
-            // Clicking away with nothing typed folds the bar back up.
-            if !focused && search.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                searchExpanded = false
+    }
+
+    /// Charts / New Releases: plain shelf lists from a browse page.
+    @ViewBuilder
+    private func shelfFeed(_ sections: [HomeSection], loading: Bool) -> some View {
+        ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 26) {
+                if loading && sections.isEmpty {
+                    HStack {
+                        Spacer()
+                        ProgressView().controlSize(.small)
+                        Spacer()
+                    }
+                    .padding(.top, 60)
+                } else if sections.isEmpty {
+                    StateMessage(icon: "chart.bar",
+                                 title: "Nothing here",
+                                 text: "Couldn't load this page right now.",
+                                 action: nil)
+                        .frame(height: 300)
+                }
+                ForEach(sections) { section in
+                    switch section {
+                    case .tracks(let title, let tracks):
+                        Carousel(title: title, tracks: tracks)
+                    case .items(let title, let items):
+                        BrowseCarousel(title: title, items: items)
+                    }
+                }
             }
+            .padding(.bottom, 20)
+            .padding(.top, 2)
         }
     }
 
@@ -415,7 +487,6 @@ struct Carousel: View {
 
 struct BrowseCard: View {
     let item: BrowseItem
-    @State private var hovering = false
 
     private var isArtist: Bool { item.kind == .artist }
 
@@ -437,7 +508,6 @@ struct BrowseCard: View {
                     RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.08))
                 }
             }
-            .scaleEffect(hovering ? 1.03 : 1)
 
             Text(item.title)
                 .font(.system(size: 12.5, weight: .medium))
@@ -451,7 +521,6 @@ struct BrowseCard: View {
         }
         .frame(width: 150, alignment: isArtist ? .center : .leading)
         .contentShape(Rectangle())
-        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
     }
 }
 

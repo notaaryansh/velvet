@@ -144,8 +144,11 @@ final class YTMusicClient {
         let title = header?["title"].findFirst("runs")?[0]["text"].string ?? "Album"
         let subtitle = header?["straplineTextOne"].findFirst("runs")?[0]["text"].string
             ?? header?["subtitle"].findFirst("runs")?.array.compactMap { $0["text"].string }.joined() ?? ""
-        let thumb = header?.findAll("url").compactMap(\.string).last
-            ?? json.findAll("url").compactMap(\.string).last
+        // Only the header's own thumbnail container — the header also holds
+        // the playlist owner's avatar (straplineThumbnail), and a blanket
+        // "last url" grab used to pick that instead of the cover art.
+        let thumb = header?["thumbnail"].findAll("url").compactMap(\.string).last
+            ?? json.findFirst("musicThumbnailRenderer")?.findAll("url").compactMap(\.string).last
         // Album rows lack their own thumbnail; borrow the album art.
         let tracks = Self.parseTracks(json).map {
             Track(id: $0.id, title: $0.title,
@@ -259,11 +262,26 @@ final class YTMusicClient {
         return (name, handle, photoStr.flatMap { URL(string: $0) })
     }
 
-    /// YouTube Music home feed as titled shelves. Shelves of playable song
-    /// cards become .tracks sections; album / playlist / artist card shelves
-    /// become navigable .items sections instead of being dropped.
+    /// YouTube Music home feed as titled shelves.
     func home() async throws -> [HomeSection] {
-        let json = try await request("browse", body: ["browseId": "FEmusic_home"])
+        try await browseSections("FEmusic_home")
+    }
+
+    /// Global charts (top songs / videos / artists).
+    func charts() async throws -> [HomeSection] {
+        try await browseSections("FEmusic_charts")
+    }
+
+    /// New albums and singles.
+    func newReleases() async throws -> [HomeSection] {
+        try await browseSections("FEmusic_new_releases")
+    }
+
+    /// A browse page as titled shelves. Shelves of playable song cards
+    /// become .tracks sections; album / playlist / artist card shelves
+    /// become navigable .items sections instead of being dropped.
+    func browseSections(_ browseId: String) async throws -> [HomeSection] {
+        let json = try await request("browse", body: ["browseId": browseId])
         var sections: [HomeSection] = []
         for shelf in json.findAll("musicCarouselShelfRenderer") + json.findAll("musicShelfRenderer") {
             let title = shelf.findFirst("header")?.findFirst("title")?

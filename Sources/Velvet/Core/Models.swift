@@ -29,6 +29,14 @@ enum HomeSection: Identifiable {
     var id: String { title }
 }
 
+/// Top-row tabs on Discover.
+enum DiscoverTab: String, CaseIterable, Identifiable {
+    case home = "Home"
+    case charts = "Charts"
+    case newReleases = "New Releases"
+    var id: String { rawValue }
+}
+
 enum SearchFilter: String, CaseIterable, Identifiable {
     case songs = "Songs"
     case videos = "Videos"
