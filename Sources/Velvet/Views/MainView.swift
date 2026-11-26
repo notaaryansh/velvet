@@ -357,14 +357,10 @@ struct Sidebar: View {
     }
 
     private var avatar: some View {
-        AsyncImage(url: auth.accountPhoto) { phase in
-            if let image = phase.image {
-                image.resizable().aspectRatio(contentMode: .fill)
-            } else {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.secondary)
-            }
+        Artwork(url: auth.accountPhoto) {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(.secondary)
         }
         .frame(width: 28, height: 28)
         .clipShape(Circle())

@@ -57,6 +57,14 @@ struct TrackList: View {
                         TrackRow(track: track, number: i + 1) {
                             PlayerService.shared.play(tracks: tracks, at: i)
                         }
+                        .onAppear {
+                            // Keep the artwork window warm ~25 rows ahead in
+                            // both directions so fast scrolling never catches
+                            // an unloaded thumbnail.
+                            let ahead = tracks[i..<min(i + 25, tracks.count)]
+                            let behind = tracks[max(0, i - 25)..<i]
+                            ArtworkCache.shared.prefetch((ahead + behind).map { $0.art(96) })
+                        }
                         if i < tracks.count - 1 {
                             Divider()
                                 .padding(.leading, 84)
@@ -133,14 +141,10 @@ struct TrackRow: View {
             .frame(width: 22)
 
             // Artwork
-            AsyncImage(url: track.art(96)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: "music.note")
-                            .font(.system(size: 14)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: track.art(96)) {
+                Rectangle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: "music.note")
+                        .font(.system(size: 14)).foregroundStyle(.tertiary))
             }
             .frame(width: 40, height: 40)
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))

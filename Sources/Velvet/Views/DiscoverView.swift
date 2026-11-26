@@ -262,14 +262,10 @@ struct BrowseItemRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: item.art(120)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: item.kind == .artist ? "person.fill" : "square.stack")
-                            .font(.system(size: 15)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: item.art(120)) {
+                Rectangle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: item.kind == .artist ? "person.fill" : "square.stack")
+                        .font(.system(size: 15)).foregroundStyle(.tertiary))
             }
             .frame(width: 48, height: 48)
             .clipShape(item.kind == .artist
@@ -330,6 +326,9 @@ struct Carousel: View {
                 .padding(.horizontal, 22)
             }
         }
+        // Shelves are short — warm every card up front so horizontal
+        // scrolling is always loaded.
+        .onAppear { ArtworkCache.shared.prefetch(tracks.map { $0.art(300) }) }
     }
 }
 
@@ -341,14 +340,10 @@ struct BrowseCard: View {
 
     var body: some View {
         VStack(alignment: isArtist ? .center : .leading, spacing: 7) {
-            AsyncImage(url: item.art(300)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: isArtist ? "person.fill" : "square.stack")
-                            .font(.system(size: 22)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: item.art(300)) {
+                Rectangle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: isArtist ? "person.fill" : "square.stack")
+                        .font(.system(size: 22)).foregroundStyle(.tertiary))
             }
             .frame(width: 150, height: 150)
             .clipShape(isArtist
@@ -390,14 +385,10 @@ struct SongCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: track.art(300)) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Rectangle().fill(Velvet.artPlaceholder)
-                            .overlay(Image(systemName: "music.note")
-                                .font(.system(size: 22)).foregroundStyle(.tertiary))
-                    }
+                Artwork(url: track.art(300)) {
+                    Rectangle().fill(Velvet.artPlaceholder)
+                        .overlay(Image(systemName: "music.note")
+                            .font(.system(size: 22)).foregroundStyle(.tertiary))
                 }
                 .frame(width: 150, height: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

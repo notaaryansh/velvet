@@ -58,13 +58,9 @@ struct ArtistPageView: View {
 
     private var header: some View {
         HStack(spacing: 18) {
-            AsyncImage(url: model.page?.thumbnail.flatMap { thumbURL($0) }) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Circle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: model.page?.thumbnail.flatMap { thumbURL($0) }) {
+                Circle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
             }
             .frame(width: 120, height: 120)
             .clipShape(Circle())
@@ -146,13 +142,9 @@ struct AlbumPageView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 18) {
-            AsyncImage(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) {
+                Rectangle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))
             }
             .frame(width: 140, height: 140)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -234,5 +226,6 @@ struct BrowseCarousel: View {
                 .padding(.horizontal, 22)
             }
         }
+        .onAppear { ArtworkCache.shared.prefetch(items.map { $0.art(300) }) }
     }
 }
