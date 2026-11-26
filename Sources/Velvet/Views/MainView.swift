@@ -262,6 +262,13 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
+        .task(id: auth.isLoggedIn) {
+            if auth.isLoggedIn {
+                await LikesStore.shared.ensureLoaded()
+            } else {
+                LikesStore.shared.reset()
+            }
+        }
     }
 }
 
@@ -275,10 +282,12 @@ struct Sidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Title bar spacer (hidden titlebar) + wordmark
-            HStack(spacing: 8) {
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 19))
-                    .foregroundStyle(Velvet.accent)
+            HStack(spacing: 7) {
+                // The real app icon; its bitmap already carries the squircle
+                // shape and standard margins, so just render it slightly large.
+                Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+                    .resizable()
+                    .frame(width: 27, height: 27)
                 Text("Velvet")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.primary)
@@ -477,7 +486,9 @@ struct LikedView: View {
                         : "Songs you like on YouTube Music appear here.",
                       error: model.error,
                       onReload: { Task { await model.reload() } })
-                .task { if model.tracks.isEmpty { await model.reload() } }
+                // Refresh every visit so hearts toggled elsewhere show up;
+                // existing rows stay on screen while the reload runs.
+                .task { await model.reload() }
         }
     }
 }

@@ -57,6 +57,7 @@ struct Track: Identifiable, Equatable, Hashable {
     let artist: String
     let durationText: String
     let thumbnail: String?  // smallest URL InnerTube gave us
+    var plays: String?      // e.g. "4.2M plays", when the shelf provides it
 
     /// Best-effort square artwork at the requested size.
     /// googleusercontent thumbs are resizable via the =wN-hN suffix;

@@ -99,6 +99,7 @@ final class YTMusicClient {
     struct ArtistPage {
         let name: String
         let thumbnail: String?
+        let subscribers: String?   // e.g. "1.2M subscribers"
         let topSongs: [Track]
         let sections: [(title: String, items: [BrowseItem])]
     }
@@ -109,6 +110,8 @@ final class YTMusicClient {
             ?? json.findFirst("musicVisualHeaderRenderer")
         let name = header?["title"].findFirst("runs")?[0]["text"].string ?? "Artist"
         let thumb = header?.findAll("url").compactMap(\.string).last
+        let subscribers = header?.findFirst("subscriberCountText")?.findFirst("runs")?[0]["text"].string
+            .map { $0.localizedCaseInsensitiveContains("subscriber") ? $0 : "\($0) subscribers" }
 
         var topSongs: [Track] = []
         var sections: [(String, [BrowseItem])] = []
@@ -123,7 +126,8 @@ final class YTMusicClient {
                 if !items.isEmpty { sections.append((title.isEmpty ? "More" : title, Array(items.prefix(20)))) }
             }
         }
-        return ArtistPage(name: name, thumbnail: thumb, topSongs: topSongs, sections: sections)
+        return ArtistPage(name: name, thumbnail: thumb, subscribers: subscribers,
+                          topSongs: topSongs, sections: sections)
     }
 
     struct AlbumPage {
@@ -199,6 +203,12 @@ final class YTMusicClient {
             add(card, titleRuns: titleRuns, subtitle: subtitle, thumb: thumb)
         }
         return out
+    }
+
+    /// Like / unlike a song in the signed-in account's library.
+    func rate(_ videoId: String, liked: Bool) async throws {
+        _ = try await request(liked ? "like/like" : "like/removelike",
+                              body: ["target": ["videoId": videoId]])
     }
 
     /// Live autocomplete suggestions for the query-in-progress.
@@ -359,11 +369,21 @@ final class YTMusicClient {
 
         let thumb = item["thumbnail"].findAll("url").compactMap(\.string).last
 
+        // Play count, when the shelf provides one ("4.2M plays" — its own
+        // flex column on artist pages, or a segment of the meta column).
+        var plays = flex.indices
+            .map { runs($0).joined() }
+            .first { $0.range(of: #"^[\d.,]+[KMB]?\s+plays$"#, options: [.regularExpression, .caseInsensitive]) != nil }
+        if plays == nil {
+            plays = parts.first { $0.range(of: #"^[\d.,]+[KMB]?\s+plays$"#, options: [.regularExpression, .caseInsensitive]) != nil }
+        }
+
         return Track(id: id,
                      title: title,
                      artist: artist,
                      durationText: duration ?? "",
-                     thumbnail: thumb)
+                     thumbnail: thumb,
+                     plays: plays)
     }
 }
 

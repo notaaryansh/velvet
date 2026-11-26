@@ -15,6 +15,27 @@ final class ArtistPageModel {
     }
 }
 
+/// Round back button that lives in the page header, beside the artwork,
+/// instead of the system one up in the title bar.
+struct HeaderBackButton: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var hovering = false
+
+    var body: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.primary.opacity(hovering ? 0.16 : 0.09)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Back")
+    }
+}
+
 struct ArtistPageView: View {
     let artistId: String
     let fallbackName: String
@@ -53,11 +74,13 @@ struct ArtistPageView: View {
             .padding(.bottom, 24)
         }
         .navigationTitle(model.page?.name ?? fallbackName)
+        .navigationBarBackButtonHidden(true)
         .task { await model.load(artistId) }
     }
 
     private var header: some View {
         HStack(spacing: 18) {
+            HeaderBackButton()
             Artwork(url: model.page?.thumbnail.flatMap { thumbURL($0) }) {
                 Circle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
@@ -70,6 +93,11 @@ struct ArtistPageView: View {
                 Text("Artist").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                 Text(model.page?.name ?? fallbackName)
                     .font(.system(size: 30, weight: .bold))
+                if let subs = model.page?.subscribers {
+                    Text(subs)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
                 if let top = model.page?.topSongs, !top.isEmpty {
                     Button {
                         PlayerService.shared.play(tracks: top, at: 0)
@@ -137,11 +165,17 @@ struct AlbumPageView: View {
             .padding(.bottom, 24)
         }
         .navigationTitle(model.page?.title ?? item.title)
+        .navigationBarBackButtonHidden(true)
         .task { await model.load(item.id) }
     }
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 18) {
+            VStack {
+                HeaderBackButton()
+                Spacer(minLength: 0)
+            }
+            .frame(height: 140)
             Artwork(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) {
                 Rectangle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))

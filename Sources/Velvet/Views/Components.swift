@@ -116,8 +116,10 @@ struct TrackRow: View {
 
     @State private var hovering = false
     @State private var player = PlayerService.shared
+    @State private var likes = LikesStore.shared
 
     private var isCurrent: Bool { player.current?.id == track.id }
+    private var isLiked: Bool { likes.isLiked(track.id) }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -162,6 +164,26 @@ struct TrackRow: View {
             }
 
             Spacer()
+
+            if let plays = track.plays {
+                Text(plays)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
+
+            // Like: appears on hover, stays visible once liked.
+            if hovering || isLiked {
+                Button {
+                    Task { await likes.toggle(track) }
+                } label: {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 13))
+                        .foregroundStyle(isLiked ? AnyShapeStyle(Velvet.accent) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help(isLiked ? "Remove from Liked Songs" : "Add to Liked Songs")
+            }
 
             Text(track.durationText)
                 .font(.system(size: 12))
