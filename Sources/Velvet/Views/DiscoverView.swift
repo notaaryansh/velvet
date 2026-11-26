@@ -153,12 +153,6 @@ struct DiscoverView: View {
     private var feed: some View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 26) {
-                // Header
-                Text(greeting)
-                    .font(.system(size: 26, weight: .bold))
-                    .padding(.horizontal, 22)
-                    .padding(.top, 2)
-
                 if !recents.tracks.isEmpty {
                     Carousel(title: "Recently Played", tracks: recents.tracks)
                 }
@@ -200,15 +194,6 @@ struct DiscoverView: View {
         }
     }
 
-    private var greeting: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        switch h {
-        case 5..<12: return "Good Morning"
-        case 12..<17: return "Good Afternoon"
-        case 17..<22: return "Good Evening"
-        default: return "Good Night"
-        }
-    }
 }
 
 // MARK: - Search filter chips
@@ -413,9 +398,13 @@ struct SongCard: View {
                         .foregroundStyle(.white, Velvet.accent)
                         .shadow(radius: 4)
                         .padding(8)
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
+            // Animate the badge when the playing song changes too, not just
+            // on hover — switching tracks cross-fades instead of flashing.
+            .animation(.snappy(duration: 0.2), value: isCurrent)
+            .animation(.snappy(duration: 0.2), value: player.isPlaying)
 
             Text(track.title)
                 .font(.system(size: 12.5, weight: .medium))
