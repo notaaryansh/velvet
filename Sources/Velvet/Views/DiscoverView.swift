@@ -154,15 +154,10 @@ struct DiscoverView: View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 26) {
                 // Header
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(greeting)
-                        .font(.system(size: 26, weight: .bold))
-                    Text("Discover")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 2)
+                Text(greeting)
+                    .font(.system(size: 26, weight: .bold))
+                    .padding(.horizontal, 22)
+                    .padding(.top, 2)
 
                 if !recents.tracks.isEmpty {
                     Carousel(title: "Recently Played", tracks: recents.tracks)

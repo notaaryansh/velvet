@@ -24,6 +24,9 @@ final class PlayerService: NSObject {
     var duration: Double = 0
     var volume: Double = 1.0
     var lastTickAt: Date = .distantPast
+    /// True after the user explicitly paused; the auto-start nudges must
+    /// never override this, only an explicit play clears it.
+    @ObservationIgnored private var userPaused = false
 
     @ObservationIgnored private var webView: WKWebView?
     @ObservationIgnored private var lastLoadAt: Date = .distantPast
@@ -112,8 +115,10 @@ final class PlayerService: NSObject {
     func togglePlay() {
         guard current != nil else { return }
         if isPlaying {
+            userPaused = true
             eval("document.querySelector('video')?.pause()")
         } else {
+            userPaused = false
             forcePlay()
         }
     }
@@ -185,6 +190,7 @@ final class PlayerService: NSObject {
         progress = 0
         duration = 0
         isPlaying = false
+        userPaused = false
         lastLoadAt = Date()
         EventBus.shared.post(.trackChanged(track))
 
@@ -314,7 +320,9 @@ extension PlayerService: WKNavigationDelegate {
             for delay in [0.6, 1.4, 2.6, 4.0, 6.0, 8.5] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     let service = PlayerService.shared
-                    guard !service.isPlaying else { return }
+                    // Stand down once playback started OR the user paused —
+                    // a nudge must never undo an explicit pause.
+                    guard !service.isPlaying, !service.userPaused else { return }
                     service.forcePlay()
                 }
             }

@@ -46,25 +46,6 @@ final class PiPController {
     }
 }
 
-/// A transparent NSView that lets the user drag the panel by clicking and
-/// dragging anywhere on it. `NSPanel.isMovableByWindowBackground` alone is
-/// unreliable once the content view is an `NSHostingView` hosting SwiftUI
-/// content, so we drive the drag explicitly via `NSWindow.performDrag`.
-/// SwiftUI only routes an event here when no interactive subview (e.g. a
-/// `Button`) claims it first, so the transport controls stay clickable.
-private final class DraggableBackgroundView: NSView {
-    override var mouseDownCanMoveWindow: Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
-    }
-}
-
-private struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DraggableBackgroundView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
 struct PiPView: View {
     @State private var player = PlayerService.shared
     @State private var hovering = false
@@ -138,7 +119,10 @@ struct PiPView: View {
             }
             .allowsHitTesting(false)
         }
-        .background(WindowDragArea())
+        .contentShape(Rectangle())
+        // Native macOS 15 window drag: grabs any part of the panel that a
+        // Button doesn't claim first, so the transport controls stay clickable.
+        .gesture(WindowDragGesture())
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
