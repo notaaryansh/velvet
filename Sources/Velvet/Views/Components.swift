@@ -7,7 +7,7 @@ import SwiftUI
 /// red tint over the dark backdrop, not a picture.
 struct WavesBackground: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
             Canvas { ctx, size in
                 let t = timeline.date.timeIntervalSinceReferenceDate
 

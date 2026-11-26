@@ -415,7 +415,6 @@ struct Carousel: View {
 
 struct BrowseCard: View {
     let item: BrowseItem
-    @State private var hovering = false
 
     private var isArtist: Bool { item.kind == .artist }
 
@@ -437,7 +436,6 @@ struct BrowseCard: View {
                     RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.08))
                 }
             }
-            .scaleEffect(hovering ? 1.03 : 1)
 
             Text(item.title)
                 .font(.system(size: 12.5, weight: .medium))
@@ -451,7 +449,6 @@ struct BrowseCard: View {
         }
         .frame(width: 150, alignment: isArtist ? .center : .leading)
         .contentShape(Rectangle())
-        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
     }
 }
 
