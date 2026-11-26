@@ -1,5 +1,46 @@
 import SwiftUI
 
+// MARK: - Ambient wave background
+
+/// The app-icon waves as living ambience: layered wine-tinted waves drifting
+/// very slowly behind the content. Alphas are tiny so it reads as a slight
+/// red tint over the dark backdrop, not a picture.
+struct WavesBackground: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            Canvas { ctx, size in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+
+                func wave(base: CGFloat, amp1: CGFloat, amp2: CGFloat,
+                          speed: Double, phase: Double, color: Color) {
+                    var p = Path()
+                    p.move(to: CGPoint(x: 0, y: size.height))
+                    let steps = 48
+                    for i in 0...steps {
+                        let f = CGFloat(i) / CGFloat(steps)
+                        let y = base * size.height
+                            + sin(f * .pi * 1.6 + CGFloat(t * speed + phase)) * amp1
+                            + sin(f * .pi * 3.3 + CGFloat(t * speed * 0.6 + phase * 2)) * amp2
+                        p.addLine(to: CGPoint(x: f * size.width, y: y))
+                    }
+                    p.addLine(to: CGPoint(x: size.width, y: size.height))
+                    p.closeSubpath()
+                    ctx.fill(p, with: .color(color))
+                }
+
+                // Back → front, sinking into deeper wine like the icon.
+                wave(base: 0.34, amp1: 30, amp2: 11, speed: 0.050, phase: 0.8,
+                     color: Color(hex: 0x8C1F3C).opacity(0.040))
+                wave(base: 0.56, amp1: 38, amp2: 13, speed: 0.034, phase: 2.9,
+                     color: Color(hex: 0x6A0F2D).opacity(0.055))
+                wave(base: 0.78, amp1: 30, amp2: 11, speed: 0.042, phase: 5.1,
+                     color: Color(hex: 0x4C001D).opacity(0.075))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Track list (Apple Music style)
 
 struct TrackList: View {

@@ -246,7 +246,13 @@ struct MainView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(VisualEffect(material: .underWindowBackground).ignoresSafeArea())
+                .background {
+                    ZStack {
+                        VisualEffect(material: .underWindowBackground)
+                        WavesBackground()
+                    }
+                    .ignoresSafeArea()
+                }
             }
             .padding(.bottom, 65) // exactly the player bar: 64pt row + divider
 
