@@ -24,6 +24,9 @@ final class PlayerService: NSObject {
     var duration: Double = 0
     var volume: Double = 1.0
     var lastTickAt: Date = .distantPast
+    /// True after the user explicitly paused; the auto-start nudges must
+    /// never override this, only an explicit play clears it.
+    @ObservationIgnored private var userPaused = false
 
     @ObservationIgnored private var webView: WKWebView?
     @ObservationIgnored private var lastLoadAt: Date = .distantPast
@@ -112,8 +115,10 @@ final class PlayerService: NSObject {
     func togglePlay() {
         guard current != nil else { return }
         if isPlaying {
+            userPaused = true
             eval("document.querySelector('video')?.pause()")
         } else {
+            userPaused = false
             forcePlay()
         }
     }
@@ -149,8 +154,14 @@ final class PlayerService: NSObject {
         applyVolume()
     }
 
+    /// Loudness perception is roughly logarithmic, so feeding the slider
+    /// fraction straight into `video.volume` crams all the audible change
+    /// into the bottom of the track. A square curve makes the slider feel
+    /// linear: `volume` stays the UI fraction, this is what the player gets.
+    private var appliedVolume: Double { volume * volume }
+
     private func applyVolume() {
-        eval("(function(){var v=document.querySelector('video'); if(v){v.volume=\(volume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
+        eval("(function(){var v=document.querySelector('video'); if(v){v.volume=\(appliedVolume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
     }
 
     /// Robust start: try the <video> element AND click YouTube Music's own
@@ -159,7 +170,7 @@ final class PlayerService: NSObject {
         eval("""
         (function(){
           var v = document.querySelector('video');
-          if (v && v.paused) { v.volume = \(volume); var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+          if (v && v.paused) { v.volume = \(appliedVolume); var p = v.play(); if (p && p.catch) p.catch(function(){}); }
           var btn = document.querySelector('#play-pause-button, tp-yt-paper-icon-button.play-pause-button, ytmusic-player-bar tp-yt-paper-icon-button[aria-label]');
           // Only click if it's currently showing "Play" (paused state).
           if (v && v.paused && btn && (btn.getAttribute('title')||'').toLowerCase().indexOf('play') === 0) { btn.click(); }
@@ -179,6 +190,7 @@ final class PlayerService: NSObject {
         progress = 0
         duration = 0
         isPlaying = false
+        userPaused = false
         lastLoadAt = Date()
         EventBus.shared.post(.trackChanged(track))
 
@@ -308,7 +320,9 @@ extension PlayerService: WKNavigationDelegate {
             for delay in [0.6, 1.4, 2.6, 4.0, 6.0, 8.5] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     let service = PlayerService.shared
-                    guard !service.isPlaying else { return }
+                    // Stand down once playback started OR the user paused —
+                    // a nudge must never undo an explicit pause.
+                    guard !service.isPlaying, !service.userPaused else { return }
                     service.forcePlay()
                 }
             }

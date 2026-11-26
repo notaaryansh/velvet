@@ -46,25 +46,6 @@ final class PiPController {
     }
 }
 
-/// A transparent NSView that lets the user drag the panel by clicking and
-/// dragging anywhere on it. `NSPanel.isMovableByWindowBackground` alone is
-/// unreliable once the content view is an `NSHostingView` hosting SwiftUI
-/// content, so we drive the drag explicitly via `NSWindow.performDrag`.
-/// SwiftUI only routes an event here when no interactive subview (e.g. a
-/// `Button`) claims it first, so the transport controls stay clickable.
-private final class DraggableBackgroundView: NSView {
-    override var mouseDownCanMoveWindow: Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        window?.performDrag(with: event)
-    }
-}
-
-private struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DraggableBackgroundView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
 struct PiPView: View {
     @State private var player = PlayerService.shared
     @State private var hovering = false
@@ -102,19 +83,18 @@ struct PiPView: View {
                             .lineLimit(1)
                     }
 
-                    HStack(spacing: 20) {
+                    // Transport only — truly centered. Exit lives top-right.
+                    HStack(spacing: 22) {
                         Button { player.previous() } label: {
                             Image(systemName: "backward.fill").font(.system(size: 13, weight: .bold))
                         }
                         Button { player.togglePlay() } label: {
                             Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 19, weight: .black))
+                                .frame(width: 24)
                         }
                         Button { player.next() } label: {
                             Image(systemName: "forward.fill").font(.system(size: 13, weight: .bold))
-                        }
-                        Button { PiPController.shared.hide() } label: {
-                            Image(systemName: "pip.exit").font(.system(size: 12, weight: .bold))
                         }
                     }
                     .buttonStyle(.plain)
@@ -138,15 +118,33 @@ struct PiPView: View {
             }
             .allowsHitTesting(false)
         }
-        .background(WindowDragArea())
+        .overlay(alignment: .topTrailing) {
+            if hovering {
+                Button { PiPController.shared.hide() } label: {
+                    Image(systemName: "pip.exit")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+                .padding(8)
+                .transition(.opacity)
+            }
+        }
+        // Drives BOTH the appear and disappear of the hover chrome with the
+        // same curve, so leaving the window animates instead of snapping.
+        .animation(.snappy(duration: 0.22), value: hovering)
+        .contentShape(Rectangle())
+        // Native macOS 15 window drag: grabs any part of the panel that a
+        // Button doesn't claim first, so the transport controls stay clickable.
+        .gesture(WindowDragGesture())
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.5), radius: 20, y: 8)
-        .onHover { h in
-            withAnimation(.snappy(duration: 0.2)) { hovering = h }
-        }
+        .onHover { hovering = $0 }
     }
 }

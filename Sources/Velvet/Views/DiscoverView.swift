@@ -1,23 +1,45 @@
 import SwiftUI
 
+/// Pops one level of the Discover navigation stack. Injected through the
+/// environment because `dismiss()` is unreliable for NavigationStack pops
+/// on macOS.
+struct PopActionKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+extension EnvironmentValues {
+    var popNavigation: () -> Void {
+        get { self[PopActionKey.self] }
+        set { self[PopActionKey.self] = newValue }
+    }
+}
+
 struct DiscoverView: View {
     var model: DiscoverModel
     @Bindable var search: SearchModel
     @State private var recents = RecentsStore.shared
+    @State private var navPath: [BrowseItem] = []
+    @State private var searchExpanded = false
     @FocusState private var searchFocused: Bool
 
     private var searching: Bool {
         search.query.trimmingCharacters(in: .whitespaces).count >= 2
     }
 
+    /// Empty query → past searches; otherwise live suggestions.
+    private var showingRecentSearches: Bool {
+        search.query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var dropdownItems: [String] {
+        showingRecentSearches ? search.recentSearches : Array(search.suggestions.prefix(8))
+    }
+
     private var showSuggestions: Bool {
-        searchFocused && !search.suppressSuggestions
-            && !search.suggestions.isEmpty
-            && !search.query.trimmingCharacters(in: .whitespaces).isEmpty
+        searchFocused && !search.suppressSuggestions && !dropdownItems.isEmpty
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     searchBar
@@ -44,6 +66,9 @@ struct DiscoverView: View {
                 }
             }
         }
+        .environment(\.popNavigation) {
+            if !navPath.isEmpty { navPath.removeLast() }
+        }
         .task {
             if !model.loaded { await model.reload() }
         }
@@ -69,54 +94,130 @@ struct DiscoverView: View {
         }
     }
 
+    private func expandSearch() {
+        searchExpanded = true
+        // Focus lands after the expansion begins so the field exists.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            searchFocused = true
+        }
+    }
+
+    private func collapseSearch() {
+        search.query = ""
+        search.suggestions = []
+        searchFocused = false
+        searchExpanded = false
+    }
+
+    /// Collapsed: a round search button. Expanded: the full field.
+    /// One container animates between the two widths.
     private var searchBar: some View {
         HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-            TextField("Search songs, artists, albums", text: $search.query)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .focused($searchFocused)
-                .onSubmit {
-                    search.suppressSuggestions = true
-                    search.suggestions = []
+            Button {
+                if !searchExpanded { expandSearch() }
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 21)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("f", modifiers: .command)
+            .help("Search (⌘F)")
+
+            if searchExpanded {
+                TextField("Search songs, artists, albums", text: $search.query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($searchFocused)
+                    .onSubmit {
+                        search.suppressSuggestions = true
+                        search.suggestions = []
+                        search.recordSearch(search.query)
+                    }
+                    .onExitCommand {
+                        // First Esc just closes the dropdown and keeps the
+                        // query/results; Esc again closes the search.
+                        if showSuggestions {
+                            search.suppressSuggestions = true
+                            search.suggestions = []
+                        } else {
+                            collapseSearch()
+                        }
+                    }
+                if search.isLoading {
+                    ProgressView().controlSize(.small).scaleEffect(0.8)
+                } else if !search.query.isEmpty {
+                    Button { search.query = ""; search.suggestions = [] } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
-            if search.isLoading {
-                ProgressView().controlSize(.small).scaleEffect(0.8)
-            } else if !search.query.isEmpty {
-                Button { search.query = ""; search.suggestions = [] } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+        .background(RoundedRectangle(cornerRadius: 17, style: .continuous)
             .fill(Color.primary.opacity(0.06)))
-        .frame(maxWidth: 420)
+        .frame(maxWidth: searchExpanded ? 420 : 36, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.snappy(duration: 0.25), value: searchExpanded)
         .padding(.horizontal, 22)
         .padding(.top, 30)
         .padding(.bottom, 12)
+        .onChange(of: searchFocused) { _, focused in
+            // Clicking away with nothing typed folds the bar back up.
+            if !focused && search.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchExpanded = false
+            }
+        }
     }
 
     private var suggestionsDropdown: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(search.suggestions.prefix(8).enumerated()), id: \.offset) { _, s in
+            if showingRecentSearches {
+                Text("Recent Searches")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 11)
+                    .padding(.top, 7)
+                    .padding(.bottom, 3)
+            }
+            ForEach(Array(dropdownItems.enumerated()), id: \.offset) { _, s in
                 Button {
                     search.choose(s)
                     searchFocused = false
                 } label: {
                     HStack(spacing: 9) {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: showingRecentSearches ? "clock.arrow.circlepath" : "magnifyingglass")
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                         Text(s)
                             .font(.system(size: 12.5))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SuggestionButtonStyle())
+            }
+            if showingRecentSearches {
+                Divider().padding(.vertical, 2)
+                Button {
+                    search.clearRecentSearches()
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                        Text("Clear Recent Searches")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                         Spacer()
                     }
                     .padding(.horizontal, 11)
@@ -136,17 +237,6 @@ struct DiscoverView: View {
     private var feed: some View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 26) {
-                // Header
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(greeting)
-                        .font(.system(size: 26, weight: .bold))
-                    Text("Discover")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 2)
-
                 if !recents.tracks.isEmpty {
                     Carousel(title: "Recently Played", tracks: recents.tracks)
                 }
@@ -188,15 +278,6 @@ struct DiscoverView: View {
         }
     }
 
-    private var greeting: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        switch h {
-        case 5..<12: return "Good Morning"
-        case 12..<17: return "Good Afternoon"
-        case 17..<22: return "Good Evening"
-        default: return "Good Night"
-        }
-    }
 }
 
 // MARK: - Search filter chips
@@ -401,9 +482,13 @@ struct SongCard: View {
                         .foregroundStyle(.white, Velvet.accent)
                         .shadow(radius: 4)
                         .padding(8)
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }
+            // Animate the badge when the playing song changes too, not just
+            // on hover — switching tracks cross-fades instead of flashing.
+            .animation(.snappy(duration: 0.2), value: isCurrent)
+            .animation(.snappy(duration: 0.2), value: player.isPlaying)
 
             Text(track.title)
                 .font(.system(size: 12.5, weight: .medium))

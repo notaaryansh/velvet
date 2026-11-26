@@ -1,5 +1,52 @@
 import SwiftUI
 
+// MARK: - Ambient wave background
+
+/// The app-icon waves as living ambience: layered wine-tinted waves drifting
+/// very slowly behind the content. Alphas are tiny so it reads as a slight
+/// red tint over the dark backdrop, not a picture.
+struct WavesBackground: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            Canvas { ctx, size in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+
+                func wave(base: CGFloat, amp1: CGFloat, amp2: CGFloat,
+                          speed: Double, phase: Double, color: Color) {
+                    var p = Path()
+                    p.move(to: CGPoint(x: 0, y: size.height))
+                    let steps = 48
+                    for i in 0...steps {
+                        let f = CGFloat(i) / CGFloat(steps)
+                        let y = base * size.height
+                            + sin(f * .pi * 1.6 + CGFloat(t * speed + phase)) * amp1
+                            + sin(f * .pi * 3.3 + CGFloat(t * speed * 0.6 + phase * 2)) * amp2
+                        p.addLine(to: CGPoint(x: f * size.width, y: y))
+                    }
+                    p.addLine(to: CGPoint(x: size.width, y: size.height))
+                    p.closeSubpath()
+                    ctx.fill(p, with: .color(color))
+                }
+
+                // Faint warm wash up top so the whole window carries the tint.
+                ctx.fill(Path(CGRect(origin: .zero, size: size)),
+                         with: .color(Color(hex: 0x2A0A1E).opacity(0.18)))
+
+                // Back → front, sinking into deeper wine like the icon.
+                wave(base: 0.30, amp1: 34, amp2: 12, speed: 0.050, phase: 0.8,
+                     color: Color(hex: 0xA84860).opacity(0.085))
+                wave(base: 0.52, amp1: 42, amp2: 15, speed: 0.034, phase: 2.9,
+                     color: Color(hex: 0x8C1F3C).opacity(0.110))
+                wave(base: 0.72, amp1: 34, amp2: 12, speed: 0.042, phase: 5.1,
+                     color: Color(hex: 0x5A0A24).opacity(0.140))
+                wave(base: 0.88, amp1: 26, amp2: 10, speed: 0.028, phase: 1.7,
+                     color: Color(hex: 0x33020F).opacity(0.160))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Track list (Apple Music style)
 
 struct TrackList: View {
@@ -153,10 +200,19 @@ struct TrackRow: View {
             .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.black.opacity(0.08)))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(track.title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isCurrent ? Velvet.accent : .primary)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(track.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isCurrent ? Velvet.accent : .primary)
+                        .lineLimit(1)
+                    if let plays = track.plays {
+                        Text(plays)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
                 Text(track.artist)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
@@ -164,13 +220,6 @@ struct TrackRow: View {
             }
 
             Spacer()
-
-            if let plays = track.plays {
-                Text(plays)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
 
             // Like: appears on hover, stays visible once liked.
             if hovering || isLiked {
