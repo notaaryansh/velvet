@@ -153,10 +153,19 @@ struct TrackRow: View {
             .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.black.opacity(0.08)))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(track.title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isCurrent ? Velvet.accent : .primary)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(track.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isCurrent ? Velvet.accent : .primary)
+                        .lineLimit(1)
+                    if let plays = track.plays {
+                        Text(plays)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
                 Text(track.artist)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
@@ -164,13 +173,6 @@ struct TrackRow: View {
             }
 
             Spacer()
-
-            if let plays = track.plays {
-                Text(plays)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            }
 
             // Like: appears on hover, stays visible once liked.
             if hovering || isLiked {
