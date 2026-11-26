@@ -252,13 +252,20 @@ struct MainView: View {
     @State private var historyModel = HistoryModel()
     @State private var auth = AuthManager.shared
     @State private var player = PlayerService.shared
+    @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
 
     var body: some View {
         ZStack {
             // One backdrop for the whole window — the icon's waves breathe
             // behind the sidebar and content alike.
             VisualEffect(material: .underWindowBackground).ignoresSafeArea()
-            WavesBackground().ignoresSafeArea()
+            if wavesEnabled {
+                // Heavy blur melts the wave edges into soft color fields.
+                WavesBackground()
+                    .blur(radius: 55)
+                    .scaleEffect(1.12)   // hide the blur's faded edges
+                    .ignoresSafeArea()
+            }
 
             HStack(spacing: 0) {
                 // Sidebar runs the full window height; the player bar lives
@@ -289,16 +296,15 @@ struct MainView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    // Account avatar floats top-right on every page, in line
-                    // with the search row.
-                    .overlay(alignment: .topTrailing) {
-                        AccountMenu(auth: auth)
-                            .padding(.top, 28)
-                            .padding(.trailing, 22)
-                    }
 
-                    PlayerBar()
+                    // The bar exists only while something is loaded; it
+                    // slides up when the first song starts.
+                    if player.current != nil {
+                        PlayerBar()
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .animation(.snappy(duration: 0.3), value: player.current != nil)
             }
 
             // Hidden playback engine.
@@ -327,6 +333,7 @@ struct Sidebar: View {
     @Binding var section: NavSection
     var auth: AuthManager
     var onReTap: () -> Void = {}
+    @State private var showSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -368,51 +375,132 @@ struct Sidebar: View {
             .padding(.horizontal, 10)
 
             Spacer()
-        }
-    }
-}
 
-/// Top-right profile picture; clicking it drops down the account menu.
-struct AccountMenu: View {
-    var auth: AuthManager
+            Divider().padding(.horizontal, 12)
 
-    var body: some View {
-        Group {
-            if !auth.resolved {
-                ProgressView().controlSize(.small).scaleEffect(0.7)
-                    .frame(width: 30, height: 30)
-            } else {
-                Menu {
-                    if auth.isLoggedIn {
+            // Account row: click the pfp/name for the dropdown menu.
+            Group {
+                if !auth.resolved {
+                    HStack(spacing: 7) {
+                        ProgressView().controlSize(.small).scaleEffect(0.7)
+                        Text("Checking session…")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                } else if auth.isLoggedIn {
+                    Menu {
                         Text(auth.accountName ?? "Signed in")
-                        if let handle = auth.accountHandle {
-                            Text(handle)
-                        }
+                        if let handle = auth.accountHandle { Text(handle) }
                         Divider()
                         Button("Sign Out", role: .destructive) {
                             Task { await auth.signOut() }
                         }
-                    } else {
-                        Button("Sign In") { auth.showLogin = true }
+                    } label: {
+                        HStack(spacing: 9) {
+                            Artwork(url: auth.accountPhoto) {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 26))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(auth.accountName ?? "Signed in")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                Text(auth.accountHandle ?? "")
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
                     }
-                } label: {
-                    Artwork(url: auth.accountPhoto) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.secondary)
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+                } else {
+                    Button {
+                        auth.showLogin = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 14))
+                            Text("Sign in")
+                                .font(.system(size: 12, weight: .medium))
+                            Spacer()
+                        }
+                        .foregroundStyle(Velvet.accent)
                     }
-                    .frame(width: 30, height: 30)
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.14)))
-                    .contentShape(Circle())
+                    .buttonStyle(.plain)
                 }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help(auth.isLoggedIn ? (auth.accountName ?? "Account") : "Sign in")
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+
+            // Settings, right below the account row.
+            Button {
+                showSettings = true
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20)
+                    Text("Settings")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+            .sheet(isPresented: $showSettings) { SettingsSheet() }
+        }
+    }
+}
+
+/// Minimal settings: the knobs that actually exist today.
+struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings")
+                .font(.system(size: 17, weight: .bold))
+
+            Toggle("Ambient wave background", isOn: $wavesEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Button("Clear Recent Searches") {
+                UserDefaults.standard.removeObject(forKey: "velvet.recentSearches")
+            }
+            .controlSize(.small)
+
+            Spacer()
+
+            HStack {
+                Text("Velvet 0.1.0")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
+        .padding(20)
+        .frame(width: 320, height: 220)
     }
 }
 
