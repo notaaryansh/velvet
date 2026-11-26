@@ -334,6 +334,8 @@ struct Sidebar: View {
     var auth: AuthManager
     var onReTap: () -> Void = {}
     @State private var showSettings = false
+    @State private var hoverAccount = false
+    @State private var hoverSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -378,13 +380,15 @@ struct Sidebar: View {
 
             Divider().padding(.horizontal, 12)
 
-            // Account row: click the pfp/name for the dropdown menu.
-            Group {
+            // Footer rows share the nav items' exact geometry: 20pt icon
+            // column, same padding, same hover treatment.
+            VStack(alignment: .leading, spacing: 2) {
                 if !auth.resolved {
-                    HStack(spacing: 7) {
-                        ProgressView().controlSize(.small).scaleEffect(0.7)
+                    SidebarFooterRow(hovering: false) {
+                        ProgressView().controlSize(.small).scaleEffect(0.6)
+                            .frame(width: 20)
                         Text("Checking session…")
-                            .font(.system(size: 11.5))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
@@ -397,75 +401,85 @@ struct Sidebar: View {
                             Task { await auth.signOut() }
                         }
                     } label: {
-                        HStack(spacing: 9) {
+                        SidebarFooterRow(hovering: hoverAccount) {
                             Artwork(url: auth.accountPhoto) {
                                 Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 26))
+                                    .font(.system(size: 18))
                                     .foregroundStyle(.secondary)
                             }
-                            .frame(width: 28, height: 28)
+                            .frame(width: 20, height: 20)
                             .clipShape(Circle())
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(auth.accountName ?? "Signed in")
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                Text(auth.accountHandle ?? "")
-                                    .font(.system(size: 10.5))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 4)
+                            Text(auth.accountName ?? "Signed in")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.primary.opacity(0.85))
+                                .lineLimit(1)
+                            Spacer()
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(.tertiary)
                         }
-                        .contentShape(Rectangle())
                     }
                     .menuStyle(.button)
                     .buttonStyle(.plain)
                     .menuIndicator(.hidden)
+                    .onHover { hoverAccount = $0 }
                 } else {
                     Button {
                         auth.showLogin = true
                     } label: {
-                        HStack(spacing: 7) {
+                        SidebarFooterRow(hovering: hoverAccount) {
                             Image(systemName: "person.crop.circle")
-                                .font(.system(size: 14))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Velvet.accent)
+                                .frame(width: 20)
                             Text("Sign in")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Velvet.accent)
                             Spacer()
                         }
-                        .foregroundStyle(Velvet.accent)
                     }
                     .buttonStyle(.plain)
+                    .onHover { hoverAccount = $0 }
                 }
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
 
-            // Settings, right below the account row.
-            Button {
-                showSettings = true
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20)
-                    Text("Settings")
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                Button {
+                    showSettings = true
+                } label: {
+                    SidebarFooterRow(hovering: hoverSettings) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20)
+                        Text("Settings")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.primary.opacity(0.85))
+                        Spacer()
+                    }
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .onHover { hoverSettings = $0 }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .sheet(isPresented: $showSettings) { SettingsSheet() }
         }
+    }
+}
+
+/// Row chrome identical to SidebarItem: 10pt padding, 7pt rounded hover.
+struct SidebarFooterRow<Content: View>: View {
+    var hovering: Bool
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 10, content: content)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(hovering ? Color.primary.opacity(0.045) : .clear)
+            )
+            .contentShape(Rectangle())
     }
 }
 
