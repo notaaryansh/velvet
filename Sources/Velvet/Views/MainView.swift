@@ -289,6 +289,13 @@ struct MainView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Account avatar floats top-right on every page, in line
+                    // with the search row.
+                    .overlay(alignment: .topTrailing) {
+                        AccountMenu(auth: auth)
+                            .padding(.top, 28)
+                            .padding(.trailing, 22)
+                    }
 
                     PlayerBar()
                 }
@@ -361,73 +368,51 @@ struct Sidebar: View {
             .padding(.horizontal, 10)
 
             Spacer()
-
-            Divider().padding(.horizontal, 12)
-
-            // Account row
-            Group {
-                if !auth.resolved {
-                    // Cookie store still loading — don't flash "Sign in".
-                    HStack(spacing: 7) {
-                        ProgressView().controlSize(.small).scaleEffect(0.7)
-                        Text("Checking session…")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                } else if auth.isLoggedIn {
-                    HStack(spacing: 9) {
-                        avatar
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(auth.accountName ?? "Signed in")
-                                .font(.system(size: 12.5, weight: .semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Text(auth.accountHandle ?? "Sign out")
-                                .font(.system(size: 10.5))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 4)
-                        Button {
-                            Task { await auth.signOut() }
-                        } label: {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Sign out")
-                    }
-                } else {
-                    Button {
-                        auth.showLogin = true
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: "person.crop.circle")
-                                .font(.system(size: 14))
-                            Text("Sign in")
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                        }
-                        .foregroundStyle(Velvet.accent)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
         }
     }
+}
 
-    private var avatar: some View {
-        Artwork(url: auth.accountPhoto) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 26))
-                .foregroundStyle(.secondary)
+/// Top-right profile picture; clicking it drops down the account menu.
+struct AccountMenu: View {
+    var auth: AuthManager
+
+    var body: some View {
+        Group {
+            if !auth.resolved {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                    .frame(width: 30, height: 30)
+            } else {
+                Menu {
+                    if auth.isLoggedIn {
+                        Text(auth.accountName ?? "Signed in")
+                        if let handle = auth.accountHandle {
+                            Text(handle)
+                        }
+                        Divider()
+                        Button("Sign Out", role: .destructive) {
+                            Task { await auth.signOut() }
+                        }
+                    } else {
+                        Button("Sign In") { auth.showLogin = true }
+                    }
+                } label: {
+                    Artwork(url: auth.accountPhoto) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 30, height: 30)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.14)))
+                    .contentShape(Circle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(auth.isLoggedIn ? (auth.accountName ?? "Account") : "Sign in")
+            }
         }
-        .frame(width: 28, height: 28)
-        .clipShape(Circle())
     }
 }
 
