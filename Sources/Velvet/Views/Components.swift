@@ -221,23 +221,28 @@ struct TrackRow: View {
 
             Spacer()
 
-            // Like: appears on hover, stays visible once liked.
-            if hovering || isLiked {
-                Button {
-                    Task { await likes.toggle(track) }
-                } label: {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 13))
-                        .foregroundStyle(isLiked ? AnyShapeStyle(Velvet.accent) : AnyShapeStyle(.secondary))
+            // Like: appears on hover, stays visible once liked. The slot is
+            // always reserved so durations stay in one aligned column.
+            ZStack {
+                if hovering || isLiked {
+                    Button {
+                        Task { await likes.toggle(track) }
+                    } label: {
+                        Image(systemName: isLiked ? "heart.fill" : "heart")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isLiked ? AnyShapeStyle(Velvet.accent) : AnyShapeStyle(.secondary))
+                    }
+                    .buttonStyle(.plain)
+                    .help(isLiked ? "Remove from Liked Songs" : "Add to Liked Songs")
                 }
-                .buttonStyle(.plain)
-                .help(isLiked ? "Remove from Liked Songs" : "Add to Liked Songs")
             }
+            .frame(width: 22)
 
             Text(track.durationText)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
+                .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 6)
