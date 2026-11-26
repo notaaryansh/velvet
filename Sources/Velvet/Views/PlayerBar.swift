@@ -42,14 +42,10 @@ struct PlayerBar: View {
 
     private var nowPlaying: some View {
         HStack(spacing: 10) {
-            AsyncImage(url: player.current?.art(120)) { phase in
-                if let image = phase.image {
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle().fill(Velvet.artPlaceholder)
-                        .overlay(Image(systemName: "music.note")
-                            .font(.system(size: 14)).foregroundStyle(.tertiary))
-                }
+            Artwork(url: player.current?.art(120)) {
+                Rectangle().fill(Velvet.artPlaceholder)
+                    .overlay(Image(systemName: "music.note")
+                        .font(.system(size: 14)).foregroundStyle(.tertiary))
             }
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))

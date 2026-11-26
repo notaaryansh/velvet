@@ -55,12 +55,8 @@ struct PiPView: View {
             // Artwork
             Group {
                 if let track = player.current {
-                    AsyncImage(url: track.art(544)) { phase in
-                        if let image = phase.image {
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        } else {
-                            Rectangle().fill(Velvet.artPlaceholder)
-                        }
+                    Artwork(url: track.art(544)) {
+                        Rectangle().fill(Velvet.artPlaceholder)
                     }
                 } else {
                     ZStack {
