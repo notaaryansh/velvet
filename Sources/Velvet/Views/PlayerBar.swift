@@ -37,7 +37,8 @@ struct PlayerBar: View {
             .padding(.horizontal, 16)
             .frame(height: 64)
         }
-        .background(VisualEffect(material: .headerView).ignoresSafeArea())
+        // Fully transparent: the velvet wave backdrop shows through; only a
+        // hairline divider separates the bar from the content.
     }
 
     private var nowPlaying: some View {
