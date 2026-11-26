@@ -205,6 +205,29 @@ final class YTMusicClient {
         return out
     }
 
+    /// The signed-in account's playlists. Requires auth.
+    func libraryPlaylists() async throws -> [BrowseItem] {
+        let json = try await request("browse", body: ["browseId": "FEmusic_liked_playlists"])
+        // Skip the auto "Liked Music" playlist (it has its own sidebar entry)
+        // and the "New playlist" tile (no real browse target).
+        return Self.parseBrowseItems(json).filter {
+            $0.kind == .playlist && $0.id != "VLLM" && $0.id != "VLSE"
+        }
+    }
+
+    /// The signed-in account's listening history as dated sections
+    /// ("Today", "Yesterday", …). Requires auth.
+    func history() async throws -> [(title: String, tracks: [Track])] {
+        let json = try await request("browse", body: ["browseId": "FEmusic_history"])
+        var sections: [(String, [Track])] = []
+        for shelf in json.findAll("musicShelfRenderer") {
+            let title = shelf.findFirst("title")?.findFirst("runs")?[0]["text"].string ?? "History"
+            let tracks = Self.parseTracks(shelf)
+            if !tracks.isEmpty { sections.append((title, tracks)) }
+        }
+        return sections
+    }
+
     /// Like / unlike a song in the signed-in account's library.
     func rate(_ videoId: String, liked: Bool) async throws {
         _ = try await request(liked ? "like/like" : "like/removelike",

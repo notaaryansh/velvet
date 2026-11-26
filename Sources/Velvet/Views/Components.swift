@@ -28,13 +28,19 @@ struct WavesBackground: View {
                     ctx.fill(p, with: .color(color))
                 }
 
+                // Faint warm wash up top so the whole window carries the tint.
+                ctx.fill(Path(CGRect(origin: .zero, size: size)),
+                         with: .color(Color(hex: 0x2A0A1E).opacity(0.18)))
+
                 // Back → front, sinking into deeper wine like the icon.
-                wave(base: 0.34, amp1: 30, amp2: 11, speed: 0.050, phase: 0.8,
-                     color: Color(hex: 0x8C1F3C).opacity(0.040))
-                wave(base: 0.56, amp1: 38, amp2: 13, speed: 0.034, phase: 2.9,
-                     color: Color(hex: 0x6A0F2D).opacity(0.055))
-                wave(base: 0.78, amp1: 30, amp2: 11, speed: 0.042, phase: 5.1,
-                     color: Color(hex: 0x4C001D).opacity(0.075))
+                wave(base: 0.30, amp1: 34, amp2: 12, speed: 0.050, phase: 0.8,
+                     color: Color(hex: 0xA84860).opacity(0.085))
+                wave(base: 0.52, amp1: 42, amp2: 15, speed: 0.034, phase: 2.9,
+                     color: Color(hex: 0x8C1F3C).opacity(0.110))
+                wave(base: 0.72, amp1: 34, amp2: 12, speed: 0.042, phase: 5.1,
+                     color: Color(hex: 0x5A0A24).opacity(0.140))
+                wave(base: 0.88, amp1: 26, amp2: 10, speed: 0.028, phase: 1.7,
+                     color: Color(hex: 0x33020F).opacity(0.160))
             }
         }
         .allowsHitTesting(false)

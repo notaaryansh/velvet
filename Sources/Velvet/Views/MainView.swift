@@ -5,13 +5,22 @@ import Observation
 enum NavSection: String, CaseIterable, Identifiable {
     case discover = "Discover"
     case liked = "Liked Songs"
+    case playlists = "Playlists"
+    case history = "History"
+    case queue = "Queue"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .discover: return "sparkles"
         case .liked: return "heart.fill"
+        case .playlists: return "music.note.list"
+        case .history: return "clock.arrow.circlepath"
+        case .queue: return "list.bullet"
         }
     }
+    /// Sidebar grouping: Discover on top, the rest under "Library".
+    static let home: [NavSection] = [.discover]
+    static let library: [NavSection] = [.liked, .playlists, .history, .queue]
 }
 
 // MARK: - Reactive view models
@@ -31,6 +40,7 @@ final class SearchModel {
     var results: [Track] = []
     var items: [BrowseItem] = []
     var suggestions: [String] = []
+    var recentSearches: [String] = UserDefaults.standard.stringArray(forKey: "velvet.recentSearches") ?? []
     var isLoading = false
     var error: String?
     /// Set true the instant a suggestion is chosen / Enter pressed, so the
@@ -65,6 +75,23 @@ final class SearchModel {
         suppressSuggestions = true
         suggestions = []
         query = suggestion
+        recordSearch(suggestion)
+    }
+
+    /// Remember a committed search (Enter or a chosen suggestion), newest
+    /// first, de-duplicated, capped at 10, persisted across launches.
+    func recordSearch(_ q: String) {
+        let trimmed = q.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count >= 2 else { return }
+        recentSearches.removeAll { $0.caseInsensitiveCompare(trimmed) == .orderedSame }
+        recentSearches.insert(trimmed, at: 0)
+        recentSearches = Array(recentSearches.prefix(10))
+        UserDefaults.standard.set(recentSearches, forKey: "velvet.recentSearches")
+    }
+
+    func clearRecentSearches() {
+        recentSearches = []
+        UserDefaults.standard.removeObject(forKey: "velvet.recentSearches")
     }
 
     private func loadSuggestions(_ q: String) async {
@@ -221,42 +248,51 @@ struct MainView: View {
     @State private var searchModel = SearchModel()
     @State private var likedModel = LikedModel()
     @State private var discoverModel = DiscoverModel()
+    @State private var playlistsModel = PlaylistsModel()
+    @State private var historyModel = HistoryModel()
     @State private var auth = AuthManager.shared
     @State private var player = PlayerService.shared
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
+            // One backdrop for the whole window — the icon's waves breathe
+            // behind the sidebar and content alike.
+            VisualEffect(material: .underWindowBackground).ignoresSafeArea()
+            WavesBackground().ignoresSafeArea()
+
             HStack(spacing: 0) {
+                // Sidebar runs the full window height; the player bar lives
+                // only under the content column.
                 Sidebar(section: $section, auth: auth) {
                     // Tapping Discover (even when already on it) returns to the
                     // feed by clearing any active search.
                     if section == .discover { searchModel.query = "" }
                 }
-                    .frame(width: 214)
-                    .background(VisualEffect(material: .sidebar).ignoresSafeArea())
+                .frame(width: 214)
+                .background(Color.black.opacity(0.14).ignoresSafeArea())
 
                 Divider().opacity(0.5)
 
-                Group {
-                    switch section {
-                    case .discover:
-                        DiscoverView(model: discoverModel, search: searchModel)
-                    case .liked:
-                        LikedView(model: likedModel, auth: auth)
+                VStack(spacing: 0) {
+                    Group {
+                        switch section {
+                        case .discover:
+                            DiscoverView(model: discoverModel, search: searchModel)
+                        case .liked:
+                            LikedView(model: likedModel, auth: auth)
+                        case .playlists:
+                            PlaylistsView(model: playlistsModel, auth: auth)
+                        case .history:
+                            HistoryView(model: historyModel, auth: auth)
+                        case .queue:
+                            QueueView()
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background {
-                    ZStack {
-                        VisualEffect(material: .underWindowBackground)
-                        WavesBackground()
-                    }
-                    .ignoresSafeArea()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    PlayerBar()
                 }
             }
-            .padding(.bottom, 65) // exactly the player bar: 64pt row + divider
-
-            PlayerBar()
 
             // Hidden playback engine.
             HiddenPlayerView()
@@ -303,7 +339,20 @@ struct Sidebar: View {
             .padding(.bottom, 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(NavSection.allCases) { s in
+                ForEach(NavSection.home) { s in
+                    SidebarItem(section: s, isSelected: section == s) {
+                        if section == s { onReTap() } else { section = s }
+                    }
+                }
+
+                Text("Library")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.top, 14)
+                    .padding(.bottom, 2)
+
+                ForEach(NavSection.library) { s in
                     SidebarItem(section: s, isSelected: section == s) {
                         if section == s { onReTap() } else { section = s }
                     }
