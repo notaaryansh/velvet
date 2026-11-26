@@ -9,8 +9,25 @@ final class ArtistPageModel {
     var isLoading = true
 
     func load(_ id: String) async {
-        isLoading = true
-        page = try? await YTMusicClient.shared.getArtist(id)
+        // Cached page renders instantly; a quiet refresh follows.
+        if let cached = PageCache.shared.artists[id] {
+            page = cached
+            isLoading = false
+        } else {
+            isLoading = true
+        }
+        if var fresh = try? await YTMusicClient.shared.getArtist(id) {
+            // Never let a refresh downgrade a page we already showed: the
+            // API sometimes omits the header image on re-fetch, which made
+            // the artist photo flash in and then vanish.
+            if fresh.thumbnail == nil, let keep = page?.thumbnail {
+                fresh = YTMusicClient.ArtistPage(name: fresh.name, thumbnail: keep,
+                                                 subscribers: fresh.subscribers,
+                                                 topSongs: fresh.topSongs, sections: fresh.sections)
+            }
+            page = fresh
+            PageCache.shared.artists[id] = fresh
+        }
         isLoading = false
     }
 }
@@ -43,6 +60,8 @@ struct ArtistPageView: View {
 
     var body: some View {
         ScrollView(showsIndicators: true) {
+            // Top padding keeps the back button clear of the window's
+            // titlebar/toolbar strip (~52pt), which swallows clicks.
             VStack(alignment: .leading, spacing: 24) {
                 header
                 if let page = model.page {
@@ -121,7 +140,7 @@ struct ArtistPageView: View {
             Spacer()
         }
         .padding(.horizontal, 22)
-        .padding(.top, 8)
+        .padding(.top, 34)
     }
 
     private func thumbURL(_ s: String) -> URL? { URL(string: s) }
@@ -136,8 +155,21 @@ final class AlbumPageModel {
     var isLoading = true
 
     func load(_ id: String) async {
-        isLoading = true
-        page = try? await YTMusicClient.shared.getAlbum(id)
+        // Cached page renders instantly; a quiet refresh follows.
+        if let cached = PageCache.shared.albums[id] {
+            page = cached
+            isLoading = false
+        } else {
+            isLoading = true
+        }
+        if var fresh = try? await YTMusicClient.shared.getAlbum(id) {
+            if fresh.thumbnail == nil, let keep = page?.thumbnail {
+                fresh = YTMusicClient.AlbumPage(title: fresh.title, subtitle: fresh.subtitle,
+                                                thumbnail: keep, tracks: fresh.tracks)
+            }
+            page = fresh
+            PageCache.shared.albums[id] = fresh
+        }
         isLoading = false
     }
 }
@@ -217,7 +249,7 @@ struct AlbumPageView: View {
             Spacer()
         }
         .padding(.horizontal, 22)
-        .padding(.top, 8)
+        .padding(.top, 34)
     }
 }
 

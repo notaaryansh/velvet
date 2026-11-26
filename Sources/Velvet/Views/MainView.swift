@@ -224,6 +224,10 @@ final class DiscoverModel {
         sections = await homeSections
         topArtists = await artists
         suggested = await picks
+
+        // Warm the top artists' full pages so tapping one is instant.
+        let toWarm = topArtists
+        Task { await PageCache.shared.warmArtists(toWarm) }
     }
 
     /// Resolve the names of the user's most-played artists into navigable
@@ -344,9 +348,22 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
+        // Warm every top-level page at launch so switching tabs or sidebar
+        // sections never shows a loading state.
+        .task {
+            async let home: Void = discoverModel.load(.home)
+            async let charts: Void = discoverModel.load(.charts)
+            async let fresh: Void = discoverModel.load(.newReleases)
+            _ = await (home, charts, fresh)
+        }
         .task(id: auth.isLoggedIn) {
             if auth.isLoggedIn {
-                await LikesStore.shared.ensureLoaded()
+                async let liked: Void = likedModel.reload()
+                async let playlists: Void = playlistsModel.reload()
+                async let history: Void = historyModel.reload()
+                _ = await (liked, playlists, history)
+                // Hearts share the liked fetch instead of re-downloading it.
+                LikesStore.shared.seed(Set(likedModel.tracks.map(\.id)))
             } else {
                 LikesStore.shared.reset()
             }

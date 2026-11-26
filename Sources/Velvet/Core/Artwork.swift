@@ -82,6 +82,12 @@ struct Artwork<Placeholder: View>: View {
                 placeholder()
             }
         }
+        // Artwork is decoration. A `.fill`-scaled image overflows its visual
+        // clip and would otherwise swallow clicks meant for neighbors (this
+        // hid the back button behind wide cover art) — so never hit-test it;
+        // rows/cards/buttons own their own contentShape.
+        .clipped()
+        .allowsHitTesting(false)
         .task(id: url) {
             loaded = nil
             guard let url, ArtworkCache.shared.cached(url) == nil else { return }
