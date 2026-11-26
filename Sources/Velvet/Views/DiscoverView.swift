@@ -137,7 +137,16 @@ struct DiscoverView: View {
                         search.suggestions = []
                         search.recordSearch(search.query)
                     }
-                    .onExitCommand { collapseSearch() }
+                    .onExitCommand {
+                        // First Esc just closes the dropdown and keeps the
+                        // query/results; Esc again closes the search.
+                        if showSuggestions {
+                            search.suppressSuggestions = true
+                            search.suggestions = []
+                        } else {
+                            collapseSearch()
+                        }
+                    }
                 if search.isLoading {
                     ProgressView().controlSize(.small).scaleEffect(0.8)
                 } else if !search.query.isEmpty {
