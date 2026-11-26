@@ -1,9 +1,23 @@
 import SwiftUI
 
+/// Pops one level of the Discover navigation stack. Injected through the
+/// environment because `dismiss()` is unreliable for NavigationStack pops
+/// on macOS.
+struct PopActionKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+extension EnvironmentValues {
+    var popNavigation: () -> Void {
+        get { self[PopActionKey.self] }
+        set { self[PopActionKey.self] = newValue }
+    }
+}
+
 struct DiscoverView: View {
     var model: DiscoverModel
     @Bindable var search: SearchModel
     @State private var recents = RecentsStore.shared
+    @State private var navPath: [BrowseItem] = []
     @FocusState private var searchFocused: Bool
 
     private var searching: Bool {
@@ -17,7 +31,7 @@ struct DiscoverView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     searchBar
@@ -43,6 +57,9 @@ struct DiscoverView: View {
                     AlbumPageView(item: item)
                 }
             }
+        }
+        .environment(\.popNavigation) {
+            if !navPath.isEmpty { navPath.removeLast() }
         }
         .task {
             if !model.loaded { await model.reload() }

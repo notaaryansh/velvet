@@ -18,11 +18,11 @@ final class ArtistPageModel {
 /// Round back button that lives in the page header, beside the artwork,
 /// instead of the system one up in the title bar.
 struct HeaderBackButton: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.popNavigation) private var pop
     @State private var hovering = false
 
     var body: some View {
-        Button { dismiss() } label: {
+        Button { pop() } label: {
             Image(systemName: "chevron.left")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
