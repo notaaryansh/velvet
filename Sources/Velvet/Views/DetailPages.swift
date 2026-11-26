@@ -75,6 +75,10 @@ struct ArtistPageView: View {
         }
         .navigationTitle(model.page?.name ?? fallbackName)
         .navigationBarBackButtonHidden(true)
+        // NavigationStack lays an invisible window-toolbar strip over the top
+        // of the page that swallows clicks meant for our in-header back
+        // button — remove it entirely.
+        .toolbar(.hidden, for: .windowToolbar)
         .task { await model.load(artistId) }
     }
 
@@ -166,6 +170,7 @@ struct AlbumPageView: View {
         }
         .navigationTitle(model.page?.title ?? item.title)
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .windowToolbar)
         .task { await model.load(item.id) }
     }
 

@@ -182,6 +182,33 @@ final class DiscoverModel {
     var isLoading = false
     var loaded = false
 
+    var chartSections: [HomeSection] = []
+    var chartsLoading = false
+    var newReleaseSections: [HomeSection] = []
+    var newReleasesLoading = false
+    @ObservationIgnored private var chartsLoaded = false
+    @ObservationIgnored private var newReleasesLoaded = false
+
+    /// Lazy per-tab loading; each browse tab fetches once per session.
+    func load(_ tab: DiscoverTab) async {
+        switch tab {
+        case .home:
+            if !loaded { await reload() }
+        case .charts:
+            guard !chartsLoaded else { return }
+            chartsLoaded = true
+            chartsLoading = true
+            chartSections = (try? await YTMusicClient.shared.charts()) ?? []
+            chartsLoading = false
+        case .newReleases:
+            guard !newReleasesLoaded else { return }
+            newReleasesLoaded = true
+            newReleasesLoading = true
+            newReleaseSections = (try? await YTMusicClient.shared.newReleases()) ?? []
+            newReleasesLoading = false
+        }
+    }
+
     func reload() async {
         isLoading = true
         defer { isLoading = false; loaded = true }

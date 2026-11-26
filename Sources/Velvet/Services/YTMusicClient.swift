@@ -259,11 +259,26 @@ final class YTMusicClient {
         return (name, handle, photoStr.flatMap { URL(string: $0) })
     }
 
-    /// YouTube Music home feed as titled shelves. Shelves of playable song
-    /// cards become .tracks sections; album / playlist / artist card shelves
-    /// become navigable .items sections instead of being dropped.
+    /// YouTube Music home feed as titled shelves.
     func home() async throws -> [HomeSection] {
-        let json = try await request("browse", body: ["browseId": "FEmusic_home"])
+        try await browseSections("FEmusic_home")
+    }
+
+    /// Global charts (top songs / videos / artists).
+    func charts() async throws -> [HomeSection] {
+        try await browseSections("FEmusic_charts")
+    }
+
+    /// New albums and singles.
+    func newReleases() async throws -> [HomeSection] {
+        try await browseSections("FEmusic_new_releases")
+    }
+
+    /// A browse page as titled shelves. Shelves of playable song cards
+    /// become .tracks sections; album / playlist / artist card shelves
+    /// become navigable .items sections instead of being dropped.
+    func browseSections(_ browseId: String) async throws -> [HomeSection] {
+        let json = try await request("browse", body: ["browseId": browseId])
         var sections: [HomeSection] = []
         for shelf in json.findAll("musicCarouselShelfRenderer") + json.findAll("musicShelfRenderer") {
             let title = shelf.findFirst("header")?.findFirst("title")?
