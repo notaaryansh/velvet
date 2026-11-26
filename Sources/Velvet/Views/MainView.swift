@@ -248,7 +248,7 @@ struct MainView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(VisualEffect(material: .underWindowBackground).ignoresSafeArea())
             }
-            .padding(.bottom, 72) // room for the player bar
+            .padding(.bottom, 65) // exactly the player bar: 64pt row + divider
 
             PlayerBar()
 
