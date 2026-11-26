@@ -1,0 +1,336 @@
+import Foundation
+import WebKit
+import QStream
+import Observation
+import SwiftUI
+
+/// Singleton playback engine: one hidden WKWebView loads
+/// music.youtube.com/watch?v=… and plays through WebKit (DRM-capable).
+/// An injected observer script streams state back over the EventBus;
+/// Velvet's own queue is the source of truth — if YouTube auto-advances
+/// on its own, we immediately steer back to our queue.
+@MainActor
+@Observable
+final class PlayerService: NSObject {
+    static let shared = PlayerService()
+
+    // Observable playback state
+    var current: Track?
+    var queue: [Track] = []
+    var index: Int = 0
+    var isPlaying = false
+    var adPlaying = false
+    var progress: Double = 0
+    var duration: Double = 0
+    var volume: Double = 1.0
+    var lastTickAt: Date = .distantPast
+
+    @ObservationIgnored private var webView: WKWebView?
+    @ObservationIgnored private var lastLoadAt: Date = .distantPast
+    @ObservationIgnored private var lastReassertAt: Date = .distantPast
+    @ObservationIgnored private var reassertCount = 0
+    @ObservationIgnored private var subscriptions: [AnySubscription] = []
+
+    private override init() {
+        super.init()
+        // Reactive pipeline: raw bridge ticks -> throttled stream -> state.
+        Task { [weak self] in
+            let throttled = await EventBus.shared.ticks
+                .throttle(for: .milliseconds(250))
+            let sub = await throttled.subscribe { tick in
+                await MainActor.run { PlayerService.shared.handle(tick) }
+            }
+            self?.subscriptions.append(sub)
+        }
+        // After a real sign-in, reload the player shell so playback
+        // uses the signed-in session (library, premium, no false anon state).
+        Task { [weak self] in
+            let authStream = await EventBus.shared.events
+                .compactMap { event -> Bool? in
+                    if case .authChanged(let v) = event { return v } else { return nil }
+                }
+            let sub = await authStream.subscribe { loggedIn in
+                await MainActor.run {
+                    let service = PlayerService.shared
+                    if loggedIn, service.current == nil {
+                        service.webViewReloadHome()
+                    }
+                }
+            }
+            self?.subscriptions.append(sub)
+        }
+    }
+
+    func webViewReloadHome() {
+        webView?.load(URLRequest(url: URL(string: "https://music.youtube.com")!))
+    }
+
+    /// Smoothly interpolated progress for fluid UI between sparse ticks.
+    var liveProgress: Double {
+        guard isPlaying, duration > 0 else { return progress }
+        return min(progress + Date().timeIntervalSince(lastTickAt), duration)
+    }
+
+    var hasPrevious: Bool { index > 0 }
+    var hasNext: Bool { index + 1 < queue.count }
+
+    // MARK: - WebView lifecycle
+
+    func ensureWebView() -> WKWebView {
+        if let webView { return webView }
+
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        config.mediaTypesRequiringUserActionForPlayback = []
+
+        let script = WKUserScript(source: Self.observerJS,
+                                  injectionTime: .atDocumentEnd,
+                                  forMainFrameOnly: true)
+        config.userContentController.addUserScript(script)
+        config.userContentController.add(BridgeHandler(), name: "velvet")
+
+        let wv = WKWebView(frame: .zero, configuration: config)
+        wv.customUserAgent = AuthManager.userAgent
+        wv.navigationDelegate = self
+        webView = wv
+
+        // Warm the shell so first playback starts fast and cookies stay fresh.
+        wv.load(URLRequest(url: URL(string: "https://music.youtube.com")!))
+        return wv
+    }
+
+    // MARK: - Controls
+
+    func play(tracks: [Track], at i: Int) {
+        guard tracks.indices.contains(i) else { return }
+        queue = tracks
+        index = i
+        RecentsStore.shared.record(tracks[i])
+        load(tracks[i])
+    }
+
+    func togglePlay() {
+        guard current != nil else { return }
+        if isPlaying {
+            eval("document.querySelector('video')?.pause()")
+        } else {
+            forcePlay()
+        }
+    }
+
+    func next() {
+        guard hasNext else {
+            eval("document.querySelector('video')?.pause()")
+            isPlaying = false
+            return
+        }
+        index += 1
+        load(queue[index])
+    }
+
+    func previous() {
+        // Restart the song if we're a few seconds in, Persona would approve.
+        if progress > 4 || !hasPrevious {
+            seek(to: 0)
+            return
+        }
+        index -= 1
+        load(queue[index])
+    }
+
+    func seek(to seconds: Double) {
+        progress = seconds
+        lastTickAt = Date()
+        eval("(function(){var v=document.querySelector('video'); if(v){v.currentTime=\(seconds);}})()")
+    }
+
+    func setVolume(_ v: Double) {
+        volume = min(max(v, 0), 1)
+        applyVolume()
+    }
+
+    private func applyVolume() {
+        eval("(function(){var v=document.querySelector('video'); if(v){v.volume=\(volume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
+    }
+
+    /// Robust start: try the <video> element AND click YouTube Music's own
+    /// play button, which some restricted tracks require.
+    private func forcePlay() {
+        eval("""
+        (function(){
+          var v = document.querySelector('video');
+          if (v && v.paused) { v.volume = \(volume); var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+          var btn = document.querySelector('#play-pause-button, tp-yt-paper-icon-button.play-pause-button, ytmusic-player-bar tp-yt-paper-icon-button[aria-label]');
+          // Only click if it's currently showing "Play" (paused state).
+          if (v && v.paused && btn && (btn.getAttribute('title')||'').toLowerCase().indexOf('play') === 0) { btn.click(); }
+        })()
+        """)
+    }
+
+    // MARK: - Internals
+
+    private func load(_ track: Track) {
+        // A fresh user-driven load resets drift tracking; a reassert reload
+        // keeps the same track so we don't reset the counter there.
+        if current?.id != track.id {
+            reassertCount = 0
+        }
+        current = track
+        progress = 0
+        duration = 0
+        isPlaying = false
+        lastLoadAt = Date()
+        EventBus.shared.post(.trackChanged(track))
+
+        let wv = ensureWebView()
+        let url = URL(string: "https://music.youtube.com/watch?v=\(track.id)")!
+        wv.load(URLRequest(url: url))
+    }
+
+    private func handle(_ tick: PlayerTick) {
+        guard let cur = current else { return }
+        let sinceLoad = Date().timeIntervalSince(lastLoadAt)
+
+        // Ad break: audio is an ad, not our song. Freeze progress, never
+        // advance — the real track starts when the ad class clears.
+        if tick.ad {
+            adPlaying = true
+            isPlaying = !tick.paused
+            lastTickAt = Date()
+            return
+        }
+        adPlaying = false
+
+        // YouTube drifted to a different song (its autoplay/radio took over).
+        // Our queue is the source of truth, so steer BACK to the current track
+        // once — never advance. If it still mismatches (YTM serves the same
+        // song under a different id), stop fighting and just let it play so we
+        // don't loop. We NEVER call next() here — that was the skip bug.
+        if !tick.videoId.isEmpty, tick.videoId != cur.id, sinceLoad > 10 {
+            if reassertCount < 1, Date().timeIntervalSince(lastReassertAt) > 8 {
+                reassertCount += 1
+                lastReassertAt = Date()
+                load(cur)
+            }
+            return
+        }
+
+        guard tick.videoId == cur.id || tick.videoId.isEmpty else { return }
+
+        // Advance only when the *song* truly finished. A track cannot end
+        // before roughly its own duration has elapsed in real wall-clock time,
+        // so require that much time since load. This defeats "unplayable"
+        // tracks (e.g. restricted Prince songs) that load correct metadata but
+        // fire `ended` immediately with currentTime snapped to the end — the
+        // old cause of "plays a few seconds, then skips".
+        if tick.ended,
+           tick.duration > 1,
+           tick.time >= tick.duration - 2,
+           durationLooksLikeCurrentTrack(tick.duration),
+           sinceLoad >= tick.duration - 6 {
+            next()
+            return
+        }
+
+        if tick.hasVideo {
+            isPlaying = !tick.paused
+            if tick.duration.isFinite, tick.duration > 1,
+               durationLooksLikeCurrentTrack(tick.duration) {
+                duration = tick.duration
+            }
+            progress = tick.time
+            lastTickAt = Date()
+        }
+    }
+
+    /// True when a reported media duration plausibly belongs to the current
+    /// track rather than an ad. Uses the track's listed duration when known.
+    private func durationLooksLikeCurrentTrack(_ reported: Double) -> Bool {
+        guard let cur = current else { return false }
+        let parts = cur.durationText.split(separator: ":").compactMap { Double($0) }
+        guard !parts.isEmpty else { return reported > 60 }   // unknown: ads are short
+        let expected = parts.reduce(0) { $0 * 60 + $1 }
+        return abs(reported - expected) < 15
+    }
+
+    private func eval(_ js: String) {
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    /// Message handler kept as a tiny NSObject so the user content
+    /// controller doesn't retain PlayerService in a cycle.
+    private final class BridgeHandler: NSObject, WKScriptMessageHandler {
+        func userContentController(_ userContentController: WKUserContentController,
+                                   didReceive message: WKScriptMessage) {
+            guard message.name == "velvet",
+                  let dict = message.body as? [String: Any],
+                  let tick = PlayerTick(dict: dict) else { return }
+            EventBus.shared.post(tick: tick)
+        }
+    }
+
+    private static let observerJS = """
+    (function () {
+      if (window.__velvet) return;
+      window.__velvet = true;
+      setInterval(function () {
+        try {
+          var v = document.querySelector('video');
+          var vid = new URLSearchParams(location.search).get('v') || '';
+          var ad = !!document.querySelector('.ad-showing, .ad-interrupting, ytmusic-player[ad-showing]');
+          var title = '', artist = '';
+          var md = navigator.mediaSession && navigator.mediaSession.metadata;
+          if (md) { title = md.title || ''; artist = md.artist || ''; }
+          window.webkit.messageHandlers.velvet.postMessage({
+            hasVideo: !!v,
+            t: v ? (v.currentTime || 0) : 0,
+            d: v ? (v.duration || 0) : 0,
+            paused: v ? v.paused : true,
+            ended: v ? v.ended : false,
+            ad: ad,
+            vid: vid, title: title, artist: artist
+          });
+        } catch (e) {}
+      }, 500);
+    })();
+    """
+}
+
+// MARK: - Navigation delegate: nudge autoplay after each watch-page load
+
+extension PlayerService: WKNavigationDelegate {
+    nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        Task { @MainActor in
+            guard self.current != nil else { return }
+            EventBus.shared.post(.playbackLoaded(videoId: self.current?.id ?? ""))
+            // Persistent start nudges — restricted tracks (e.g. Prince) need
+            // several tries and a click on YTM's own play button.
+            for delay in [0.6, 1.4, 2.6, 4.0, 6.0, 8.5] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    let service = PlayerService.shared
+                    guard !service.isPlaying else { return }
+                    service.forcePlay()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Hidden host view (keeps the WebView in the window hierarchy)
+
+struct HiddenPlayerView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 2, height: 2))
+        let wv = PlayerService.shared.ensureWebView()
+        wv.frame = container.bounds
+        wv.autoresizingMask = [.width, .height]
+        if wv.superview !== container {
+            wv.removeFromSuperview()
+            container.addSubview(wv)
+        }
+        container.alphaValue = 0.02
+        return container
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}

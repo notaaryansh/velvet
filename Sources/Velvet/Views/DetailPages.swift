@@ -1,0 +1,238 @@
+import SwiftUI
+
+// MARK: - Artist page
+
+@MainActor
+@Observable
+final class ArtistPageModel {
+    var page: YTMusicClient.ArtistPage?
+    var isLoading = true
+
+    func load(_ id: String) async {
+        isLoading = true
+        page = try? await YTMusicClient.shared.getArtist(id)
+        isLoading = false
+    }
+}
+
+struct ArtistPageView: View {
+    let artistId: String
+    let fallbackName: String
+    @State private var model = ArtistPageModel()
+
+    var body: some View {
+        ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                if let page = model.page {
+                    if !page.topSongs.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionHeader("Top Songs") {
+                                PlayerService.shared.play(tracks: page.topSongs, at: 0)
+                            }
+                            VStack(spacing: 0) {
+                                ForEach(Array(page.topSongs.enumerated()), id: \.element.id) { i, t in
+                                    TrackRow(track: t, number: i + 1) {
+                                        PlayerService.shared.play(tracks: page.topSongs, at: i)
+                                    }
+                                    if i < page.topSongs.count - 1 {
+                                        Divider().padding(.leading, 84).opacity(0.4)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    ForEach(Array(page.sections.enumerated()), id: \.offset) { _, section in
+                        BrowseCarousel(title: section.title, items: section.items)
+                    }
+                } else if model.isLoading {
+                    ProgressView().controlSize(.small)
+                        .frame(maxWidth: .infinity).padding(.top, 60)
+                }
+            }
+            .padding(.bottom, 24)
+        }
+        .navigationTitle(model.page?.name ?? fallbackName)
+        .task { await model.load(artistId) }
+    }
+
+    private var header: some View {
+        HStack(spacing: 18) {
+            AsyncImage(url: model.page?.thumbnail.flatMap { thumbURL($0) }) { phase in
+                if let image = phase.image {
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Circle().fill(Velvet.artPlaceholder)
+                        .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
+                }
+            }
+            .frame(width: 120, height: 120)
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Artist").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                Text(model.page?.name ?? fallbackName)
+                    .font(.system(size: 30, weight: .bold))
+                if let top = model.page?.topSongs, !top.isEmpty {
+                    Button {
+                        PlayerService.shared.play(tracks: top, at: 0)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill").font(.system(size: 10))
+                            Text("Play").font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 7)
+                        .background(Capsule().fill(Velvet.accent))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+    }
+
+    private func thumbURL(_ s: String) -> URL? { URL(string: s) }
+}
+
+// MARK: - Album / Playlist page
+
+@MainActor
+@Observable
+final class AlbumPageModel {
+    var page: YTMusicClient.AlbumPage?
+    var isLoading = true
+
+    func load(_ id: String) async {
+        isLoading = true
+        page = try? await YTMusicClient.shared.getAlbum(id)
+        isLoading = false
+    }
+}
+
+struct AlbumPageView: View {
+    let item: BrowseItem
+    @State private var model = AlbumPageModel()
+
+    var body: some View {
+        ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                if let tracks = model.page?.tracks, !tracks.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { i, t in
+                            TrackRow(track: t, number: i + 1) {
+                                PlayerService.shared.play(tracks: tracks, at: i)
+                            }
+                            if i < tracks.count - 1 {
+                                Divider().padding(.leading, 84).opacity(0.4)
+                            }
+                        }
+                    }
+                } else if model.isLoading {
+                    ProgressView().controlSize(.small)
+                        .frame(maxWidth: .infinity).padding(.top, 40)
+                }
+            }
+            .padding(.bottom, 24)
+        }
+        .navigationTitle(model.page?.title ?? item.title)
+        .task { await model.load(item.id) }
+    }
+
+    private var header: some View {
+        HStack(alignment: .bottom, spacing: 18) {
+            AsyncImage(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) { phase in
+                if let image = phase.image {
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Rectangle().fill(Velvet.artPlaceholder)
+                        .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))
+                }
+            }
+            .frame(width: 140, height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.kind.rawValue.capitalized)
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                Text(model.page?.title ?? item.title)
+                    .font(.system(size: 28, weight: .bold))
+                    .lineLimit(2)
+                Text(model.page?.subtitle ?? item.subtitle)
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if let tracks = model.page?.tracks, !tracks.isEmpty {
+                    Button {
+                        PlayerService.shared.play(tracks: tracks, at: 0)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill").font(.system(size: 10))
+                            Text("Play").font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 7)
+                        .background(Capsule().fill(Velvet.accent))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+    }
+}
+
+// MARK: - Shared bits
+
+struct SectionHeader: View {
+    let title: String
+    var onPlay: (() -> Void)?
+    init(_ title: String, onPlay: (() -> Void)? = nil) { self.title = title; self.onPlay = onPlay }
+
+    var body: some View {
+        HStack {
+            Text(title).font(.system(size: 19, weight: .bold))
+            Spacer()
+            if let onPlay {
+                Button(action: onPlay) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 20)).foregroundStyle(Velvet.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 22)
+    }
+}
+
+/// Horizontal carousel of browsable cards (albums / playlists / artists)
+/// that navigate to their detail pages.
+struct BrowseCarousel: View {
+    let title: String
+    let items: [BrowseItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.system(size: 19, weight: .bold)).padding(.horizontal, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 16) {
+                    ForEach(items) { item in
+                        NavigationLink(value: item) {
+                            BrowseCard(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 22)
+            }
+        }
+    }
+}

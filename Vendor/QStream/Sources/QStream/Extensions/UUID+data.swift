@@ -1,0 +1,29 @@
+//
+//  UUID+data.swift
+//
+//  Created by Quirin Schweigert on 07.12.21.
+//
+
+import Foundation
+
+public extension UUID {
+    var data: Data {
+        return withUnsafePointer(to: self) {
+            Data(bytes: $0, count: MemoryLayout.size(ofValue: self))
+        }
+    }
+
+    init?(data: Data) throws {
+        guard data.count == MemoryLayout<UUID>.size else {
+            return nil
+        }
+
+        var uuid = UUID()
+
+        _ = withUnsafeMutableBytes(of: &uuid) { unsafeMutableRawBufferPointer in
+            data.copyBytes(to: unsafeMutableRawBufferPointer)
+        }
+
+        self = uuid
+    }
+}
