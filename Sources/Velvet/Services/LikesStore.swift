@@ -16,15 +16,6 @@ final class LikesStore {
 
     func isLiked(_ id: String) -> Bool { ids.contains(id) }
 
-    /// Fetch liked-song ids once per session (and again after re-login).
-    func ensureLoaded() async {
-        guard !loaded, AuthManager.shared.isLoggedIn else { return }
-        loaded = true
-        if let tracks = try? await YTMusicClient.shared.likedSongs() {
-            ids = Set(tracks.map(\.id))
-        }
-    }
-
     /// Adopt an already-fetched liked list instead of fetching again.
     func seed(_ trackIds: Set<String>) {
         ids = trackIds

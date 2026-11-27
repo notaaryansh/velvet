@@ -436,7 +436,6 @@ struct Sidebar: View {
     var onReTap: () -> Void = {}
     @State private var showSettings = false
     @State private var hoverAccount = false
-    @State private var hoverSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -659,58 +658,6 @@ struct SidebarItem: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-    }
-}
-
-// MARK: - Search page
-
-struct SearchView: View {
-    @Bindable var model: SearchModel
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Search field in the toolbar area
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                TextField("Search songs and artists", text: $model.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .focused($focused)
-                if model.isLoading {
-                    ProgressView().controlSize(.small).scaleEffect(0.8)
-                } else if !model.query.isEmpty {
-                    Button { model.query = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-            )
-            .frame(maxWidth: 340)
-            .padding(.horizontal, 22)
-            .padding(.top, 30)
-            .padding(.bottom, 14)
-
-            TrackList(tracks: model.results,
-                      title: "Search",
-                      subtitle: model.results.isEmpty ? nil : "\(model.results.count) songs",
-                      emptyIcon: "magnifyingglass",
-                      emptyTitle: model.query.isEmpty ? "Search YouTube Music" : "No Results",
-                      emptyText: model.query.isEmpty
-                        ? "Find any song or artist."
-                        : (model.isLoading ? "Searching…" : "Try a different search."),
-                      error: model.error)
-        }
-        .onAppear { focused = true }
     }
 }
 

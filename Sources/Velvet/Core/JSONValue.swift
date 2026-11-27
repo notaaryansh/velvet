@@ -20,18 +20,8 @@ struct JSON {
         return JSON(raw: nil)
     }
 
-    var exists: Bool { raw != nil }
     var string: String? { raw as? String }
-    var double: Double? {
-        if let d = raw as? Double { return d }
-        if let i = raw as? Int { return Double(i) }
-        return nil
-    }
-    var bool: Bool? { raw as? Bool }
     var array: [JSON] { (raw as? [Any])?.map { JSON(raw: $0) } ?? [] }
-    var dictionary: [String: JSON] {
-        ((raw as? [String: Any]) ?? [:]).mapValues { JSON(raw: $0) }
-    }
 
     /// Depth-first search: collect every value stored under `key` anywhere below.
     func findAll(_ key: String) -> [JSON] {

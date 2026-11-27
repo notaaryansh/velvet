@@ -198,7 +198,6 @@ final class PlayerService: NSObject {
         isBuffering = true
         userPaused = false
         lastLoadAt = Date()
-        EventBus.shared.post(.trackChanged(track))
 
         let wv = ensureWebView()
         let url = URL(string: "https://music.youtube.com/watch?v=\(track.id)")!
@@ -297,9 +296,6 @@ final class PlayerService: NSObject {
           var v = document.querySelector('video');
           var vid = new URLSearchParams(location.search).get('v') || '';
           var ad = !!document.querySelector('.ad-showing, .ad-interrupting, ytmusic-player[ad-showing]');
-          var title = '', artist = '';
-          var md = navigator.mediaSession && navigator.mediaSession.metadata;
-          if (md) { title = md.title || ''; artist = md.artist || ''; }
           window.webkit.messageHandlers.velvet.postMessage({
             hasVideo: !!v,
             t: v ? (v.currentTime || 0) : 0,
@@ -307,7 +303,7 @@ final class PlayerService: NSObject {
             paused: v ? v.paused : true,
             ended: v ? v.ended : false,
             ad: ad,
-            vid: vid, title: title, artist: artist
+            vid: vid
           });
         } catch (e) {}
       }, 500);
@@ -321,7 +317,6 @@ extension PlayerService: WKNavigationDelegate {
     nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             guard self.current != nil else { return }
-            EventBus.shared.post(.playbackLoaded(videoId: self.current?.id ?? ""))
             // Persistent start nudges — restricted tracks (e.g. Prince) need
             // several tries and a click on YTM's own play button.
             for delay in [0.6, 1.4, 2.6, 4.0, 6.0, 8.5] {

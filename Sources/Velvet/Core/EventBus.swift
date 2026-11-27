@@ -10,8 +10,6 @@ struct PlayerTick: Sendable {
     let ended: Bool
     let ad: Bool
     let videoId: String
-    let title: String
-    let artist: String
 
     init?(dict: [String: Any]) {
         guard let t = dict["t"] as? Double else { return nil }
@@ -22,8 +20,6 @@ struct PlayerTick: Sendable {
         ended = dict["ended"] as? Bool ?? false
         ad = dict["ad"] as? Bool ?? false
         videoId = dict["vid"] as? String ?? ""
-        title = dict["title"] as? String ?? ""
-        artist = dict["artist"] as? String ?? ""
     }
 }
 
@@ -31,10 +27,7 @@ struct PlayerTick: Sendable {
 /// streams. Consumers chain operators (throttle / debounce / compactMap /
 /// removeDuplicates) so UI work stays minimal and memory stays flat.
 enum AppEvent: Sendable {
-    case trackChanged(Track?)
-    case playbackLoaded(videoId: String)
     case authChanged(Bool)
-    case error(String)
 }
 
 final class EventBus: Sendable {
