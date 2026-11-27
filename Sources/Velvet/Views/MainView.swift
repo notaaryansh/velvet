@@ -714,7 +714,6 @@ struct SignInButton: View {
                 .background(Capsule().fill(
                     LinearGradient(colors: [Velvet.accent, Color(hex: 0xA6182F)],
                                    startPoint: .top, endPoint: .bottom)))
-                .shadow(color: Velvet.accent.opacity(0.35), radius: 14, y: 5)
         }
         .buttonStyle(.plain)
     }
