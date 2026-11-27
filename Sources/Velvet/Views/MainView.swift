@@ -30,15 +30,22 @@ enum NavSection: String, CaseIterable, Identifiable {
 final class SearchModel {
     var query = "" {
         didSet {
+            // Fresh typing re-enables suggestions; a chosen suggestion or
+            // Enter re-suppresses right after setting the query.
+            suppressSuggestions = false
             let q = query
             Task { await queryStream.set(q) }
         }
     }
-    var filter: SearchFilter = .songs {
-        didSet { if filter != oldValue { Task { await run(query) } } }
+
+    var hasAnyResults: Bool {
+        !results.isEmpty || !artistResults.isEmpty
+            || !albumResults.isEmpty || !playlistResults.isEmpty
     }
     var results: [Track] = []
-    var items: [BrowseItem] = []
+    var artistResults: [BrowseItem] = []
+    var albumResults: [BrowseItem] = []
+    var playlistResults: [BrowseItem] = []
     var suggestions: [String] = []
     var recentSearches: [String] = UserDefaults.standard.stringArray(forKey: "velvet.recentSearches") ?? []
     var isLoading = false
@@ -72,9 +79,9 @@ final class SearchModel {
     }
 
     func choose(_ suggestion: String) {
-        suppressSuggestions = true
         suggestions = []
-        query = suggestion
+        query = suggestion          // didSet un-suppresses…
+        suppressSuggestions = true  // …so suppress after.
         recordSearch(suggestion)
     }
 
@@ -97,34 +104,34 @@ final class SearchModel {
     private func loadSuggestions(_ q: String) async {
         let trimmed = q.trimmingCharacters(in: .whitespaces)
         guard trimmed.count >= 2 else { suggestions = []; return }
-        suppressSuggestions = false
         let got = (try? await YTMusicClient.shared.searchSuggestions(trimmed)) ?? []
-        guard trimmed == query.trimmingCharacters(in: .whitespaces) else { return }
+        // A fetch that lands after Enter/choose must not reopen the dropdown.
+        guard trimmed == query.trimmingCharacters(in: .whitespaces),
+              !suppressSuggestions else { return }
         suggestions = got
     }
 
+    /// One query, four result kinds fetched in parallel — the results page
+    /// shows them as stacked sections, empties omitted.
     private func run(_ q: String) async {
         let trimmed = q.trimmingCharacters(in: .whitespaces)
         guard trimmed.count >= 2 else {
-            results = []; items = []; isLoading = false
+            results = []; artistResults = []; albumResults = []; playlistResults = []
+            isLoading = false
             return
         }
         isLoading = true
         error = nil
-        let activeFilter = filter
-        do {
-            if activeFilter.isTracks {
-                let tracks = try await YTMusicClient.shared.searchTracks(trimmed, filter: activeFilter)
-                guard trimmed == query.trimmingCharacters(in: .whitespaces), activeFilter == filter else { return }
-                results = tracks; items = []
-            } else {
-                let browse = try await YTMusicClient.shared.searchBrowse(trimmed, filter: activeFilter)
-                guard trimmed == query.trimmingCharacters(in: .whitespaces), activeFilter == filter else { return }
-                items = browse; results = []
-            }
-        } catch {
-            self.error = error.localizedDescription
-        }
+        async let songs = try? YTMusicClient.shared.searchTracks(trimmed, filter: .songs)
+        async let artists = try? YTMusicClient.shared.searchBrowse(trimmed, filter: .artists)
+        async let albums = try? YTMusicClient.shared.searchBrowse(trimmed, filter: .albums)
+        async let playlists = try? YTMusicClient.shared.searchBrowse(trimmed, filter: .playlists)
+        let (s, a, al, pl) = await (songs, artists, albums, playlists)
+        guard trimmed == query.trimmingCharacters(in: .whitespaces) else { return }
+        results = s ?? []
+        artistResults = (a ?? []).filter { $0.kind == .artist }
+        albumResults = al ?? []
+        playlistResults = pl ?? []
         isLoading = false
     }
 }
@@ -343,7 +350,7 @@ struct MainView: View {
                     default: break
                     }
                 }
-                .frame(width: 214)
+                .frame(width: 190)
                 .background(Color.black.opacity(0.14).ignoresSafeArea())
 
                 Divider().opacity(0.5)
@@ -473,19 +480,16 @@ struct Sidebar: View {
             Spacer()
 
             // Brand row, level with the player bar (64pt + divider).
-            HStack {
-                SidebarFooterRow(hovering: false) {
-                    AppIconMark(size: 18)
-                        .frame(width: 20)
-                    Text("Velvet")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(colors: [Color(hex: 0xE3A7C0), Color(hex: 0xA84860)],
-                                           startPoint: .top, endPoint: .bottom))
-                    Spacer()
-                }
+            HStack(spacing: 7) {
+                AppIconMark(size: 16)
+                Text("Velvet")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(colors: [Color(hex: 0xE3A7C0), Color(hex: 0xA84860)],
+                                       startPoint: .top, endPoint: .bottom))
             }
-            .padding(.horizontal, 10)
+            .padding(.leading, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 64)
         }
     }

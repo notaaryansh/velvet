@@ -85,14 +85,32 @@ struct PlayerBar: View {
         .buttonStyle(.plain)
         .help("Volume")
         .popover(isPresented: $showVolume, arrowEdge: .top) {
-            Scrubber(progress: player.volume) { frac in
-                player.setVolume(frac)
-            } onCommit: { frac in
-                player.setVolume(frac)
+            VerticalVolumeSlider(value: player.volume) { player.setVolume($0) }
+                .frame(width: 22, height: 120)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 14)
+        }
+    }
+
+    private struct VerticalVolumeSlider: View {
+        var value: Double
+        var onChange: (Double) -> Void
+
+        var body: some View {
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(Color.primary.opacity(0.14))
+                        .frame(width: 5)
+                    Capsule().fill(Color.primary.opacity(0.85))
+                        .frame(width: 5, height: max(0, geo.size.height * value))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                    let frac = 1 - (g.location.y / geo.size.height)
+                    onChange(min(max(frac, 0), 1))
+                })
             }
-            .frame(width: 140)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
         }
     }
 
