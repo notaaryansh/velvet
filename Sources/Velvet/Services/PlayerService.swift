@@ -19,6 +19,9 @@ final class PlayerService: NSObject {
     var queue: [Track] = []
     var index: Int = 0
     var isPlaying = false
+    /// True from pressing play until audio actually starts — drives the
+    /// spinner in the transport.
+    var isBuffering = false
     var adPlaying = false
     var progress: Double = 0
     var duration: Double = 0
@@ -116,6 +119,7 @@ final class PlayerService: NSObject {
         guard current != nil else { return }
         if isPlaying {
             userPaused = true
+            isBuffering = false
             eval("document.querySelector('video')?.pause()")
         } else {
             userPaused = false
@@ -127,6 +131,7 @@ final class PlayerService: NSObject {
         guard hasNext else {
             eval("document.querySelector('video')?.pause()")
             isPlaying = false
+            isBuffering = false
             return
         }
         index += 1
@@ -190,6 +195,7 @@ final class PlayerService: NSObject {
         progress = 0
         duration = 0
         isPlaying = false
+        isBuffering = true
         userPaused = false
         lastLoadAt = Date()
         EventBus.shared.post(.trackChanged(track))
@@ -246,6 +252,7 @@ final class PlayerService: NSObject {
 
         if tick.hasVideo {
             isPlaying = !tick.paused
+            if !tick.paused || tick.time > 0.3 { isBuffering = false }
             if tick.duration.isFinite, tick.duration > 1,
                durationLooksLikeCurrentTrack(tick.duration) {
                 duration = tick.duration

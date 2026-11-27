@@ -13,7 +13,9 @@ struct PlayerBar: View {
             Divider().opacity(0.6)
             HStack(spacing: 14) {
                 nowPlaying
-                    .frame(width: 240, alignment: .leading)
+                    // Natural width (capped) — a fixed 240pt block left a
+                    // dead gap between short titles and the transport.
+                    .frame(minWidth: 140, maxWidth: 240, alignment: .leading)
 
                 transport
 
@@ -105,9 +107,15 @@ struct PlayerBar: View {
             .disabled(player.current == nil)
 
             Button { player.togglePlay() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 20))
-                    .frame(width: 24)
+                ZStack {
+                    if player.isBuffering {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 20))
+                    }
+                }
+                .frame(width: 24)
             }
             .buttonStyle(.plain)
             .disabled(player.current == nil)

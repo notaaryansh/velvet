@@ -475,13 +475,16 @@ struct Sidebar: View {
                         }
                     } label: {
                         SidebarFooterRow(hovering: hoverAccount) {
+                            // 18pt image centered in the 20pt glyph column,
+                            // matching the nav symbols' optical size.
                             Artwork(url: auth.accountPhoto) {
                                 Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 16))
                                     .foregroundStyle(.secondary)
                             }
-                            .frame(width: 20, height: 20)
+                            .frame(width: 18, height: 18)
                             .clipShape(Circle())
+                            .frame(width: 20)
                             Text(auth.accountName ?? "Signed in")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Color.primary.opacity(0.85))
@@ -520,9 +523,10 @@ struct Sidebar: View {
                 SidebarFooterRow(hovering: false) {
                     Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
                         .resizable()
-                        .frame(width: 20, height: 20)
+                        .frame(width: 18, height: 18)
+                        .frame(width: 20)
                     Text("Velvet")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
