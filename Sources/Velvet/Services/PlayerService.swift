@@ -339,6 +339,18 @@ final class PlayerService: NSObject {
                 reassertCount += 1
                 lastReassertAt = Date()
                 load(cur)
+            } else if reassertCount >= 1 {
+                // The steer didn't stick: YTM is serving this song under an
+                // equivalent video id (restricted/region swaps). Adopt the
+                // playing id so ticks match again — playhead, duration and
+                // end-detection all come back to life.
+                plog("adopt: \(cur.title) now tracked as vid=\(tick.videoId)")
+                let adopted = Track(id: tick.videoId, title: cur.title, artist: cur.artist,
+                                    durationText: cur.durationText, thumbnail: cur.thumbnail,
+                                    plays: cur.plays)
+                current = adopted
+                if queue.indices.contains(index) { queue[index] = adopted }
+                loggedMismatch = false
             }
             return
         }
