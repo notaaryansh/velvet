@@ -187,9 +187,11 @@ struct TrackRow: View {
                         .font(.system(size: 12, design: .default))
                         .foregroundStyle(.tertiary)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
-            .frame(width: 22)
+            .frame(width: 30)   // fits 3-digit indexes without wrapping
 
             // Artwork
             Artwork(url: track.art(96)) {
@@ -242,13 +244,13 @@ struct TrackRow: View {
             }
             .frame(width: 22)
 
-            if !track.durationText.isEmpty {
-                Text(track.durationText)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .frame(width: 44, alignment: .trailing)
-            }
+            // ALWAYS reserved, even when the duration is unknown — hiding it
+            // per-row let that row's heart drift out of the shared column.
+            Text(track.durationText)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 6)

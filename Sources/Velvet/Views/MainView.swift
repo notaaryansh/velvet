@@ -422,20 +422,8 @@ struct Sidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Title bar spacer (hidden titlebar) + wordmark
-            // Geometry matches the nav rows: 20pt icon column centered at
-            // x=30, text starting at x=50.
-            HStack(spacing: 9) {
-                Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
-                    .resizable()
-                    .frame(width: 22, height: 22)
-                Text("Velvet")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.top, 34)
-            .padding(.leading, 19)
-            .padding(.bottom, 18)
-
+            // No header wordmark — the brand row lives in the footer.
+            // Top padding clears the traffic lights.
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(NavSection.home) { s in
                     SidebarItem(section: s, isSelected: section == s) {
@@ -457,6 +445,7 @@ struct Sidebar: View {
                 }
             }
             .padding(.horizontal, 10)
+            .padding(.top, 48)
 
             Spacer()
 
@@ -478,6 +467,8 @@ struct Sidebar: View {
                     Menu {
                         Text(auth.accountName ?? "Signed in")
                         if let handle = auth.accountHandle { Text(handle) }
+                        Divider()
+                        Button("Settings…") { showSettings = true }
                         Divider()
                         Button("Sign Out", role: .destructive) {
                             Task { await auth.signOut() }
@@ -524,22 +515,17 @@ struct Sidebar: View {
                     .onHover { hoverAccount = $0 }
                 }
 
-                Button {
-                    showSettings = true
-                } label: {
-                    SidebarFooterRow(hovering: hoverSettings) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 20)
-                        Text("Settings")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.primary.opacity(0.85))
-                        Spacer()
-                    }
+                // Brand row: the wordmark lives down here; Settings moved
+                // into the account dropdown above.
+                SidebarFooterRow(hovering: false) {
+                    Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+                        .resizable()
+                        .frame(width: 20, height: 20)
+                    Text("Velvet")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .onHover { hoverSettings = $0 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)

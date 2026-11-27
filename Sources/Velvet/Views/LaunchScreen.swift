@@ -2,15 +2,22 @@ import SwiftUI
 import AppKit
 
 /// Flips the hosting NSWindow between transparent (splash: no backdrop, no
-/// shadow, no traffic lights — just the floating icon) and normal.
+/// shadow, no traffic lights — just the floating icon) and normal. Applies
+/// SYNCHRONOUSLY the moment the view lands in a window, so the window never
+/// flashes its opaque frame before the splash takes over.
 struct WindowTransparency: NSViewRepresentable {
     var transparent: Bool
 
-    func makeNSView(context: Context) -> NSView { NSView() }
+    final class ApplyingView: NSView {
+        var transparent = true { didSet { apply() } }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = nsView.window else { return }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            guard let window else { return }
             window.isOpaque = !transparent
             window.backgroundColor = transparent ? .clear : NSColor.windowBackgroundColor
             window.hasShadow = !transparent
@@ -18,6 +25,16 @@ struct WindowTransparency: NSViewRepresentable {
                 window.standardWindowButton(kind)?.isHidden = transparent
             }
         }
+    }
+
+    func makeNSView(context: Context) -> ApplyingView {
+        let view = ApplyingView()
+        view.transparent = transparent
+        return view
+    }
+
+    func updateNSView(_ nsView: ApplyingView, context: Context) {
+        nsView.transparent = transparent
     }
 }
 

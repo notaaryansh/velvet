@@ -17,10 +17,11 @@ struct PlayerBar: View {
 
                 transport
 
+                // Flexible scrubber soaks up the slack so the bar has no
+                // dead gaps between clusters.
                 centerScrubber
-                    .frame(maxWidth: 420)
-
-                Spacer(minLength: 8)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 6)
 
                 volumeControl
 
