@@ -18,6 +18,12 @@ struct WindowTransparency: NSViewRepresentable {
 
         func apply() {
             guard let window else { return }
+            // Red X hides the window instead of destroying it, so the app
+            // (and playback) keeps running until an explicit quit.
+            if !(window is NSPanel), let close = window.standardWindowButton(.closeButton) {
+                close.target = WindowHider.shared
+                close.action = #selector(WindowHider.hideWindow(_:))
+            }
             window.isOpaque = !transparent
             window.backgroundColor = transparent ? .clear : NSColor.windowBackgroundColor
             window.hasShadow = !transparent

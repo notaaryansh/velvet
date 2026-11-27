@@ -17,6 +17,7 @@ struct DiscoverView: View {
     var model: DiscoverModel
     @Bindable var search: SearchModel
     @State private var recents = RecentsStore.shared
+    @State private var auth = AuthManager.shared
     @State private var searchExpanded = false
     @State private var tab: DiscoverTab = .home
     @FocusState private var searchFocused: Bool
@@ -39,7 +40,7 @@ struct DiscoverView: View {
     }
 
     var body: some View {
-        BrowseNavigationStack {
+        BrowseNavigationStack(resetPulse: model.resetPulse) {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     searchBar
@@ -68,6 +69,7 @@ struct DiscoverView: View {
         .task {
             if !model.loaded { await model.reload() }
         }
+        .onChange(of: model.resetPulse) { collapseSearch() }
     }
 
     @ViewBuilder
@@ -282,17 +284,23 @@ struct DiscoverView: View {
     private var feed: some View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 26) {
-                if !recents.tracks.isEmpty {
-                    Carousel(title: "Recently Played", tracks: recents.tracks)
-                }
-                if recents.mostPlayed.count >= 3 {
-                    Carousel(title: "On Repeat", tracks: recents.mostPlayed)
-                }
-                if !model.topArtists.isEmpty {
-                    BrowseCarousel(title: "Your Top Artists", items: model.topArtists)
-                }
-                if !model.suggested.isEmpty {
-                    Carousel(title: "Suggested for You", tracks: model.suggested)
+                // Personal shelves belong to the signed-in account only;
+                // signed out, the feed opens with a sign-in hero instead.
+                if auth.resolved && !auth.isLoggedIn {
+                    SignInHero(auth: auth)
+                } else if auth.isLoggedIn {
+                    if !recents.tracks.isEmpty {
+                        Carousel(title: "Recently Played", tracks: recents.tracks)
+                    }
+                    if recents.mostPlayed.count >= 3 {
+                        Carousel(title: "On Repeat", tracks: recents.mostPlayed)
+                    }
+                    if !model.topArtists.isEmpty {
+                        BrowseCarousel(title: "Your Top Artists", items: model.topArtists)
+                    }
+                    if !model.suggested.isEmpty {
+                        Carousel(title: "Suggested for You", tracks: model.suggested)
+                    }
                 }
 
                 if model.isLoading && model.sections.isEmpty {
@@ -406,7 +414,7 @@ struct BrowseItemRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 22)
-        .padding(.vertical, 7)
+        .padding(.vertical, 10)
         .background(hovering ? Velvet.rowHover : .clear)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

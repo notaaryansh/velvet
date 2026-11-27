@@ -182,6 +182,10 @@ final class DiscoverModel {
     var isLoading = false
     var loaded = false
 
+    /// Bumped when the sidebar Discover item is re-tapped; observers reset
+    /// search and navigation back to the root feed.
+    var resetPulse = 0
+
     var chartSections: [HomeSection] = []
     var chartsLoading = false
     var newReleaseSections: [HomeSection] = []
@@ -334,9 +338,12 @@ struct MainView: View {
                 // Sidebar runs the full window height; the player bar lives
                 // only under the content column.
                 Sidebar(section: $section, auth: auth) {
-                    // Tapping Discover (even when already on it) returns to the
-                    // feed by clearing any active search.
-                    if section == .discover { searchModel.query = "" }
+                    // Re-tapping a section resets it to its root screen.
+                    switch section {
+                    case .discover: discoverModel.resetPulse += 1
+                    case .playlists: playlistsModel.resetPulse += 1
+                    default: break
+                    }
                 }
                 .frame(width: 214)
                 .background(Color.black.opacity(0.14).ignoresSafeArea())
@@ -544,8 +551,10 @@ struct Sidebar: View {
                     AppIconMark(size: 18)
                         .frame(width: 20)
                     Text("Velvet")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(colors: [Color(hex: 0xE3A7C0), Color(hex: 0xA84860)],
+                                           startPoint: .top, endPoint: .bottom))
                     Spacer()
                 }
             }
@@ -694,31 +703,59 @@ struct LikedView: View {
     }
 }
 
+/// Gradient sign-in capsule shared by the signed-out surfaces.
+struct SignInButton: View {
+    var auth: AuthManager
+    var body: some View {
+        Button {
+            auth.showLogin = true
+        } label: {
+            Text("Sign In")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(
+                    LinearGradient(colors: [Velvet.accent, Color(hex: 0xA6182F)],
+                                   startPoint: .top, endPoint: .bottom)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Full-page signed-out state: the icon as a hero over the velvet backdrop.
 struct SignedOutState: View {
     var auth: AuthManager
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "heart.text.square")
-                .font(.system(size: 46))
-                .foregroundStyle(.tertiary)
-            Text("Sign in to see your music")
-                .font(.system(size: 17, weight: .semibold))
-            Text("Your liked songs live in your YouTube Music account.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            Button {
-                auth.showLogin = true
-            } label: {
-                Text("Sign In")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 7)
-                    .background(Capsule().fill(Velvet.accent))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 4)
+        VStack(spacing: 20) {
+            AppIconMark(size: 84)
+                .shadow(color: Color(hex: 0x8C1F3C).opacity(0.55), radius: 28, y: 10)
+            Text("Sign in to continue")
+                .font(.system(size: 22, weight: .bold))
+            SignInButton(auth: auth)
+                .padding(.top, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Compact sign-in banner at the top of the signed-out Discover feed.
+struct SignInHero: View {
+    var auth: AuthManager
+    var body: some View {
+        HStack(spacing: 16) {
+            AppIconMark(size: 46)
+                .shadow(color: Color(hex: 0x8C1F3C).opacity(0.5), radius: 12, y: 4)
+            Text("Sign in to continue")
+                .font(.system(size: 15, weight: .semibold))
+            Spacer()
+            SignInButton(auth: auth)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color(hex: 0x8C1F3C).opacity(0.16)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .strokeBorder(Color(hex: 0xE3A7C0).opacity(0.14)))
+        .padding(.horizontal, 22)
     }
 }

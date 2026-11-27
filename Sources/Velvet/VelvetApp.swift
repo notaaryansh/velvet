@@ -11,8 +11,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // Keep playing if the main window closes while PiP is up.
-        !PiPController.shared.isVisible
+        // Closing windows never quits Velvet — it keeps playing in the
+        // background. Quit only via Cmd-Q / Dock → Quit. (Exiting PiP with
+        // the main window closed used to leave zero windows and terminate
+        // the app, which read as a crash.)
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // Dock click brings the hidden main window back.
+        AppDelegate.showMainWindow()
+        return false
+    }
+
+    /// Re-show the (hidden, not closed) main window.
+    static func showMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        for window in NSApp.windows where !(window is NSPanel) && window.contentViewController != nil {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+    }
+}
+
+/// Retained target that turns the red close button into "hide": the window
+/// stays alive (playback and state intact) and comes back from the Dock.
+final class WindowHider: NSObject {
+    static let shared = WindowHider()
+    @objc func hideWindow(_ sender: Any?) {
+        (sender as? NSView)?.window?.orderOut(nil)
     }
 }
 
