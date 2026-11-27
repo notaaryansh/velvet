@@ -416,18 +416,18 @@ struct Sidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Title bar spacer (hidden titlebar) + wordmark
-            HStack(spacing: 7) {
-                // The real app icon; its bitmap already carries the squircle
-                // shape and standard margins, so just render it slightly large.
+            // Geometry matches the nav rows: 20pt icon column centered at
+            // x=30, text starting at x=50.
+            HStack(spacing: 9) {
                 Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
                     .resizable()
-                    .frame(width: 27, height: 27)
+                    .frame(width: 22, height: 22)
                 Text("Velvet")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.primary)
             }
             .padding(.top, 34)
-            .padding(.horizontal, 16)
+            .padding(.leading, 19)
             .padding(.bottom, 18)
 
             VStack(alignment: .leading, spacing: 2) {

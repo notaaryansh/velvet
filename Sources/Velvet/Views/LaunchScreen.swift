@@ -8,13 +8,11 @@ struct LaunchWaves: View {
         ZStack {
             Color(hex: 0x120A0E)
 
-            // The icon tile, alive.
+            // Just the icon, alive — small, no chrome, Discord-style.
             animatedIcon
-                .frame(width: 180, height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .strokeBorder(.white.opacity(0.07), lineWidth: 1))
-                .shadow(color: .black.opacity(0.55), radius: 28, y: 10)
+                .frame(width: 110, height: 110)
+                .clipShape(RoundedRectangle(cornerRadius: 24.5, style: .continuous))
+                .shadow(color: .black.opacity(0.45), radius: 16, y: 6)
         }
         .ignoresSafeArea()
         .allowsHitTesting(true)   // swallow clicks while loading
