@@ -231,6 +231,24 @@ final class YTMusicClient {
         return sections
     }
 
+    /// YTM's watch-next / autoplay queue for a song — the same suggestions
+    /// the official client keeps playing after a track ends.
+    func related(_ videoId: String) async throws -> [Track] {
+        let json = try await request("next", body: ["videoId": videoId])
+        var seen = Set<String>()
+        var out: [Track] = []
+        for item in json.findAll("playlistPanelVideoRenderer") {
+            guard let id = item["videoId"].string, seen.insert(id).inserted,
+                  let title = item["title"].findFirst("runs")?[0]["text"].string else { continue }
+            let artist = item["shortBylineText"].findFirst("runs")?[0]["text"].string ?? ""
+            let length = item["lengthText"].findFirst("runs")?[0]["text"].string ?? ""
+            let thumb = item["thumbnail"].findAll("url").compactMap(\.string).last
+            out.append(Track(id: id, title: title, artist: artist,
+                             durationText: length, thumbnail: thumb))
+        }
+        return out
+    }
+
     /// Like / unlike a song in the signed-in account's library.
     func rate(_ videoId: String, liked: Bool) async throws {
         _ = try await request(liked ? "like/like" : "like/removelike",

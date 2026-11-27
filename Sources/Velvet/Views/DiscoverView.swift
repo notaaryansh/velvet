@@ -19,6 +19,7 @@ struct DiscoverView: View {
     @State private var recents = RecentsStore.shared
     @State private var auth = AuthManager.shared
     @State private var searchExpanded = false
+    @State private var expandedSections: Set<String> = []
     @State private var tab: DiscoverTab = .home
     @FocusState private var searchFocused: Bool
 
@@ -32,11 +33,17 @@ struct DiscoverView: View {
     }
 
     private var dropdownItems: [String] {
-        showingRecentSearches ? search.recentSearches : Array(search.suggestions.prefix(8))
+        Array(search.suggestions.prefix(8))
     }
 
     private var showSuggestions: Bool {
-        searchFocused && !search.suppressSuggestions && !dropdownItems.isEmpty
+        searchExpanded && searchFocused && !showingRecentSearches
+            && !search.suppressSuggestions && !dropdownItems.isEmpty
+    }
+
+    /// Inline recents panel: expanded search + empty query.
+    private var showRecentsPanel: Bool {
+        searchExpanded && showingRecentSearches && !search.recentSearches.isEmpty
     }
 
     var body: some View {
@@ -44,19 +51,33 @@ struct DiscoverView: View {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     searchBar
-                    if searching {
-                        searchResults
-                    } else {
-                        switch tab {
-                        case .home:
-                            feed
-                        case .charts:
-                            shelfFeed(model.chartSections, loading: model.chartsLoading)
-                        case .newReleases:
-                            shelfFeed(model.newReleaseSections, loading: model.newReleasesLoading)
+                    if showRecentsPanel {
+                        recentSearchesPanel
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    Group {
+                        if searching {
+                            searchResults
+                        } else {
+                            switch tab {
+                            case .home:
+                                feed
+                            case .charts:
+                                shelfFeed(model.chartSections, loading: model.chartsLoading)
+                            case .newReleases:
+                                shelfFeed(model.newReleaseSections, loading: model.newReleasesLoading)
+                            }
                         }
                     }
+                    // Clicking anywhere below the bar folds up an empty
+                    // expanded search (simultaneous: cards still work).
+                    .simultaneousGesture(TapGesture().onEnded {
+                        if searchExpanded && search.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                            collapseSearch()
+                        }
+                    })
                 }
+                .animation(.snappy(duration: 0.25, extraBounce: 0), value: showRecentsPanel)
 
                 if showSuggestions {
                     suggestionsDropdown
@@ -70,35 +91,80 @@ struct DiscoverView: View {
             if !model.loaded { await model.reload() }
         }
         .onChange(of: model.resetPulse) { collapseSearch() }
+        .onChange(of: search.query) { expandedSections = [] }
     }
 
+    /// Structured results: Songs, Artists, Albums, Playlists stacked in
+    /// order, three rows each with View More, empty sections omitted so the
+    /// rest move up.
     @ViewBuilder
     private var searchResults: some View {
-        VStack(spacing: 0) {
-            FilterChips(selected: Binding(get: { search.filter },
-                                          set: { search.filter = $0 }))
-            if search.filter.isTracks {
-                TrackList(tracks: search.results,
-                          title: "Results",
-                          subtitle: search.results.isEmpty ? nil : "\(search.results.count) \(search.filter.rawValue.lowercased())",
-                          emptyIcon: "magnifyingglass",
-                          emptyTitle: search.isLoading ? "Searching…" : "No Results",
-                          emptyText: search.isLoading ? "Finding your music." : "Try a different search.",
-                          error: search.error)
-            } else {
-                BrowseItemList(items: search.items,
-                               isLoading: search.isLoading)
+        if !search.hasAnyResults {
+            StateMessage(icon: "magnifyingglass",
+                         title: search.isLoading ? "Searching…" : "No Results",
+                         text: search.isLoading ? "Finding your music." : "Try a different search.",
+                         action: nil)
+        } else {
+            ScrollView(showsIndicators: true) {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if !search.results.isEmpty {
+                        resultHeader("Songs", total: search.results.count)
+                        let shown = expandedSections.contains("Songs")
+                            ? search.results : Array(search.results.prefix(3))
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, t in
+                            TrackRow(track: t, number: nil) {
+                                PlayerService.shared.play(tracks: search.results, at: i)
+                            }
+                            if i < shown.count - 1 { RowDivider() }
+                        }
+                    }
+                    browseResults("Artists", search.artistResults)
+                    browseResults("Albums", search.albumResults)
+                    browseResults("Playlists", search.playlistResults)
+                }
+                .padding(.bottom, 16)
             }
         }
     }
 
+    @ViewBuilder
+    private func browseResults(_ title: String, _ items: [BrowseItem]) -> some View {
+        if !items.isEmpty {
+            resultHeader(title, total: items.count)
+            let shown = expandedSections.contains(title) ? items : Array(items.prefix(3))
+            ForEach(shown) { item in
+                NavigationLink(value: item) {
+                    BrowseItemRow(item: item)
+                }
+                .buttonStyle(.plain)
+                if item.id != shown.last?.id { RowDivider() }
+            }
+        }
+    }
+
+    private func resultHeader(_ title: String, total: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+            Spacer()
+            if total > 3 {
+                Button(expandedSections.contains(title) ? "Show Less" : "View More") {
+                    if !expandedSections.insert(title).inserted {
+                        expandedSections.remove(title)
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Velvet.accent)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+    }
+
     private func expandSearch() {
         searchExpanded = true
-        // Focus lands after the expansion begins so the field exists.
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(80))
-            searchFocused = true
-        }
+        searchFocused = true   // field is always mounted, so focus is instant
     }
 
     private func collapseSearch() {
@@ -139,12 +205,19 @@ struct DiscoverView: View {
             if searchExpanded {
                 Spacer(minLength: 0)
             }
+            AccountMenu()
         }
-        .animation(.snappy(duration: 0.25), value: searchExpanded)
+        .animation(.snappy(duration: 0.2, extraBounce: 0), value: searchExpanded)
         .padding(.horizontal, 22)
         .padding(.top, 30)
         .padding(.bottom, 12)
         .onChange(of: searchFocused) { _, focused in
+            // The window auto-focuses the first text field at launch —
+            // release any focus the collapsed field didn't ask for.
+            if focused && !searchExpanded {
+                searchFocused = false
+                return
+            }
             // Clicking away with nothing typed folds the bar back up.
             if !focused && search.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 searchExpanded = false
@@ -167,11 +240,13 @@ struct DiscoverView: View {
             .keyboardShortcut("f", modifiers: .command)
             .help("Search (⌘F)")
 
-            if searchExpanded {
-                TextField("Search songs, artists, albums", text: $search.query)
+            TextField("Search songs, artists, albums", text: $search.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused($searchFocused)
+                    .opacity(searchExpanded ? 1 : 0)
+                    .frame(maxWidth: searchExpanded ? .infinity : 0)
+                    .allowsHitTesting(searchExpanded)
                     .onSubmit {
                         search.suppressSuggestions = true
                         search.suggestions = []
@@ -187,6 +262,7 @@ struct DiscoverView: View {
                             collapseSearch()
                         }
                     }
+            if searchExpanded {
                 if search.isLoading {
                     ProgressView().controlSize(.small).scaleEffect(0.8)
                 } else if !search.query.isEmpty {
@@ -230,6 +306,46 @@ struct DiscoverView: View {
         }
     }
 
+    /// Recents as a first-class section that pushes the feed down.
+    private var recentSearchesPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent Searches")
+                    .font(.system(size: 19, weight: .bold))
+                Spacer()
+                Button("Clear") { search.clearRecentSearches() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Velvet.accent)
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 4)
+
+            ForEach(Array(search.recentSearches.prefix(6).enumerated()), id: \.offset) { _, term in
+                Button {
+                    search.choose(term)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20)
+                        Text(term)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SuggestionButtonStyle())
+            }
+        }
+        .padding(.bottom, 12)
+    }
+
     private func dropdownRow(icon: String, text: String, dim: Bool = false,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -252,25 +368,10 @@ struct DiscoverView: View {
 
     private var suggestionsDropdown: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showingRecentSearches {
-                Text("Recent Searches")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 11)
-                    .padding(.top, 7)
-                    .padding(.bottom, 3)
-            }
             ForEach(Array(dropdownItems.enumerated()), id: \.offset) { _, s in
-                dropdownRow(icon: showingRecentSearches ? "clock.arrow.circlepath" : "magnifyingglass",
-                            text: s) {
+                dropdownRow(icon: "magnifyingglass", text: s) {
                     search.choose(s)
                     searchFocused = false
-                }
-            }
-            if showingRecentSearches {
-                Divider().padding(.vertical, 2)
-                dropdownRow(icon: "trash", text: "Clear Recent Searches", dim: true) {
-                    search.clearRecentSearches()
                 }
             }
         }
