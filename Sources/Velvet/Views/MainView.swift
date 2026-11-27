@@ -200,12 +200,27 @@ final class DiscoverModel {
             chartsLoading = true
             chartSections = (try? await YTMusicClient.shared.charts()) ?? []
             chartsLoading = false
+            Self.prefetchArt(chartSections)
         case .newReleases:
             guard !newReleasesLoaded else { return }
             newReleasesLoaded = true
             newReleasesLoading = true
             newReleaseSections = (try? await YTMusicClient.shared.newReleases()) ?? []
             newReleasesLoading = false
+            Self.prefetchArt(newReleaseSections)
+        }
+    }
+
+    /// Decode every shelf's card art the moment the data lands — waiting
+    /// for the carousels' onAppear means images pop in on first visit.
+    private static func prefetchArt(_ sections: [HomeSection]) {
+        for section in sections {
+            switch section {
+            case .tracks(_, let tracks):
+                ArtworkCache.shared.prefetch(tracks.map { $0.art(300) })
+            case .items(_, let items):
+                ArtworkCache.shared.prefetch(items.map { $0.art(300) })
+            }
         }
     }
 
@@ -224,6 +239,10 @@ final class DiscoverModel {
         sections = await homeSections
         topArtists = await artists
         suggested = await picks
+
+        Self.prefetchArt(sections)
+        ArtworkCache.shared.prefetch(suggested.map { $0.art(300) })
+        ArtworkCache.shared.prefetch(topArtists.map { $0.art(300) })
 
         // Warm the top artists' full pages so tapping one is instant.
         let toWarm = topArtists
