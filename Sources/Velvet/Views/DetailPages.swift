@@ -213,7 +213,10 @@ struct AlbumPageView: View {
                 Spacer(minLength: 0)
             }
             .frame(height: 140)
-            Artwork(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) {
+            // Prefer the SAME art the list row already loaded (just larger),
+            // so opening a playlist never swaps to a different URL and
+            // re-fetches; the page's own thumbnail is only a fallback.
+            Artwork(url: item.art(400) ?? (model.page?.thumbnail).flatMap { URL(string: $0) }) {
                 Rectangle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))
             }

@@ -18,6 +18,8 @@ final class PlaylistsModel {
             // Warm the list art and every playlist's interior so opening
             // one never shows a spinner.
             ArtworkCache.shared.prefetch(items.map { $0.art(120) })
+            // Header-size art too, so the detail page renders from memory.
+            ArtworkCache.shared.prefetch(items.map { $0.art(400) })
             let toWarm = items
             Task { await PageCache.shared.warmAlbums(toWarm) }
         } catch {
