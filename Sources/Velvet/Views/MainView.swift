@@ -327,11 +327,9 @@ struct MainView: View {
             // behind the sidebar and content alike.
             VisualEffect(material: .underWindowBackground).ignoresSafeArea()
             if wavesEnabled {
-                // Heavy blur melts the wave edges into soft color fields.
-                WavesBackground()
-                    .blur(radius: 55)
-                    .scaleEffect(1.12)   // hide the blur's faded edges
-                    .ignoresSafeArea()
+                // Blur + upscale happen inside WavesBackground at thumbnail
+                // resolution, where they're nearly free.
+                WavesBackground().ignoresSafeArea()
             }
 
             HStack(spacing: 0) {
