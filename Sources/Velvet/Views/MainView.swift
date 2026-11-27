@@ -542,9 +542,7 @@ struct Sidebar: View {
                 // Brand row: the wordmark lives down here; Settings moved
                 // into the account dropdown above.
                 SidebarFooterRow(hovering: false) {
-                    Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
-                        .resizable()
-                        .frame(width: 18, height: 18)
+                    AppIconMark(size: 18)
                         .frame(width: 20)
                     Text("Velvet")
                         .font(.system(size: 13, weight: .medium))
@@ -556,6 +554,27 @@ struct Sidebar: View {
             .padding(.vertical, 8)
             .sheet(isPresented: $showSettings) { SettingsSheet() }
         }
+    }
+}
+
+/// The app icon rendered crisp at small sizes: the icon bitmap carries the
+/// standard macOS tile margins (~20% of the canvas), so drawn naively at
+/// 18pt the visible tile is ~14pt of rescaled low-res rep — blurry. This
+/// scales the margins away so the tile fills the frame, with high-quality
+/// downsampling.
+struct AppIconMark: View {
+    let size: CGFloat
+    private static let marginScale: CGFloat = 1024.0 / 824.0
+
+    var body: some View {
+        ZStack {
+            Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size * Self.marginScale, height: size * Self.marginScale)
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
     }
 }
 

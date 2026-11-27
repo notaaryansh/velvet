@@ -73,7 +73,7 @@ struct PlaylistsView: View {
                 .navigationDestination(for: BrowseItem.self) { item in
                     switch item.kind {
                     case .artist:
-                        ArtistPageView(artistId: item.id, fallbackName: item.title)
+                        ArtistPageView(artistId: item.id, fallbackName: item.title, fallbackArt: item.art(400))
                     case .album, .playlist:
                         AlbumPageView(item: item)
                     }

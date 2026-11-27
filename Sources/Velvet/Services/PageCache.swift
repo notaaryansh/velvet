@@ -92,7 +92,14 @@ final class PageCache {
             await withTaskGroup(of: Void.self) { group in
                 for item in batch {
                     group.addTask { @MainActor in
-                        guard let page = try? await YTMusicClient.shared.getArtist(item.id) else { return }
+                        guard var page = try? await YTMusicClient.shared.getArtist(item.id) else { return }
+                        // The API sometimes omits the artist image; backfill
+                        // from the card we navigated from so it's never blank.
+                        if page.thumbnail == nil, let thumb = item.thumbnail {
+                            page = YTMusicClient.ArtistPage(name: page.name, thumbnail: thumb,
+                                                            subscribers: page.subscribers,
+                                                            topSongs: page.topSongs, sections: page.sections)
+                        }
                         self.setArtist(page, for: item.id)
                         ArtworkCache.shared.prefetch(page.topSongs.map { $0.art(96) })
                         ArtworkCache.shared.prefetch(page.sections.flatMap { $0.items.prefix(10) }.map { $0.art(300) })

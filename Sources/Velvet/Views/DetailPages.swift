@@ -68,12 +68,16 @@ struct HeaderBackButton: View {
 struct ArtistPageView: View {
     let artistId: String
     let fallbackName: String
+    /// Art from the card that navigated here — the API sometimes omits the
+    /// artist page's own header image, which left a blank circle.
+    let fallbackArt: URL?
     @State private var model: ArtistPageModel
 
     @MainActor
-    init(artistId: String, fallbackName: String) {
+    init(artistId: String, fallbackName: String, fallbackArt: URL? = nil) {
         self.artistId = artistId
         self.fallbackName = fallbackName
+        self.fallbackArt = fallbackArt
         _model = State(initialValue: ArtistPageModel(
             prefill: PageCache.shared.artist(artistId)?.page))
     }
@@ -124,7 +128,7 @@ struct ArtistPageView: View {
     private var header: some View {
         HStack(spacing: 18) {
             HeaderBackButton()
-            Artwork(url: model.page?.thumbnail.flatMap { thumbURL($0) }) {
+            Artwork(url: fallbackArt ?? model.page?.thumbnail.flatMap { thumbURL($0) }) {
                 Circle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
             }
