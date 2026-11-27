@@ -1,4 +1,25 @@
 import SwiftUI
+import AppKit
+
+/// Flips the hosting NSWindow between transparent (splash: no backdrop, no
+/// shadow, no traffic lights — just the floating icon) and normal.
+struct WindowTransparency: NSViewRepresentable {
+    var transparent: Bool
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = nsView.window else { return }
+            window.isOpaque = !transparent
+            window.backgroundColor = transparent ? .clear : NSColor.windowBackgroundColor
+            window.hasShadow = !transparent
+            for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                window.standardWindowButton(kind)?.isHidden = transparent
+            }
+        }
+    }
+}
 
 /// Launch screen: dark backdrop with the app icon centered, its waves
 /// gently animating while the app preloads. MainView crossfades it away
@@ -6,7 +27,9 @@ import SwiftUI
 struct LaunchWaves: View {
     var body: some View {
         ZStack {
-            Color(hex: 0x120A0E)
+            // Fully transparent — the window itself is made see-through
+            // while the splash shows, so only the icon floats on screen.
+            Color.clear
 
             // Just the icon, alive — small, no chrome, Discord-style.
             animatedIcon

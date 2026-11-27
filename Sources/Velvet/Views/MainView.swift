@@ -299,6 +299,7 @@ struct MainView: View {
 
     var body: some View {
         ZStack {
+            Group {
             // One backdrop for the whole window — the icon's waves breathe
             // behind the sidebar and content alike.
             VisualEffect(material: .underWindowBackground).ignoresSafeArea()
@@ -349,6 +350,10 @@ struct MainView: View {
                 }
                 .animation(.snappy(duration: 0.3), value: player.current != nil)
             }
+            }
+            // The whole app hides while the splash shows: the window is made
+            // transparent then, so only the floating icon is visible.
+            .opacity(showLaunch ? 0 : 1)
 
             // Hidden playback engine.
             HiddenPlayerView()
@@ -360,14 +365,15 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
-        // The launch waves sit over everything and crossfade away slowly
-        // once the preloads land.
+        // The launch icon sits over everything and crossfades away once
+        // the preloads land; the window itself is transparent meanwhile.
         .overlay {
             if showLaunch {
                 LaunchWaves()
                     .transition(.opacity)
             }
         }
+        .background(WindowTransparency(transparent: showLaunch))
         .animation(.easeInOut(duration: 0.5), value: showLaunch)
         // Warm every top-level page at launch so switching tabs or sidebar
         // sections never shows a loading state.
