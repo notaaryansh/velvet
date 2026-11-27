@@ -339,7 +339,7 @@ struct TrackRow: View {
                 .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 22)
-        .padding(.vertical, 6)
+        .padding(.vertical, 9)
         .background(hovering ? Velvet.rowHover : .clear)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

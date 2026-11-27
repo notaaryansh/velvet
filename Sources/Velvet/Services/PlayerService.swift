@@ -125,7 +125,7 @@ final class PlayerService: NSObject {
         if isPlaying {
             userPaused = true
             isBuffering = false
-            eval("window.__velvetPaused = true; document.querySelector('video')?.pause()")
+            eval("window.__velvetPaused = true; var p = document.getElementById('movie_player'); if (p && p.pauseVideo) { p.pauseVideo(); } else { document.querySelector('video')?.pause(); }")
         } else {
             userPaused = false
             forcePlay()
@@ -134,7 +134,7 @@ final class PlayerService: NSObject {
 
     func next() {
         guard hasNext else {
-            eval("window.__velvetPaused = true; document.querySelector('video')?.pause()")
+            eval("window.__velvetPaused = true; var p = document.getElementById('movie_player'); if (p && p.pauseVideo) { p.pauseVideo(); } else { document.querySelector('video')?.pause(); }")
             isPlaying = false
             isBuffering = false
             return
@@ -170,8 +170,24 @@ final class PlayerService: NSObject {
     /// linear: `volume` stays the UI fraction, this is what the player gets.
     private var appliedVolume: Double { volume * volume }
 
+    /// YTM's player-API volume scale (0-100), with the perceptual curve.
+    private var volumePercent: Int { Int((appliedVolume * 100).rounded()) }
+
     private func applyVolume() {
-        eval("(function(){window.__velvetVol=\(appliedVolume); var v=document.querySelector('video'); if(v){v.volume=\(appliedVolume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
+        eval("""
+        (function(){
+          var pct = \(volumePercent);
+          window.__velvetVolPct = pct;
+          var p = document.getElementById('movie_player');
+          if (p && p.setVolume) {
+            p.setVolume(pct);
+            if (pct === 0 && p.mute) { p.mute(); } else if (p.unMute) { p.unMute(); }
+          } else {
+            var v = document.querySelector('video');
+            if (v) { v.volume = \(appliedVolume); v.muted = \(volume <= 0 ? "true" : "false"); }
+          }
+        })()
+        """)
     }
 
     /// Robust start: try the <video> element AND click YouTube Music's own
@@ -180,9 +196,12 @@ final class PlayerService: NSObject {
         eval("""
         (function(){
           window.__velvetPaused = false;
-          window.__velvetVol = \(appliedVolume);
+          window.__velvetVolPct = \(volumePercent);
+          var mp = document.getElementById('movie_player');
+          if (mp && mp.setVolume) { mp.setVolume(\(volumePercent)); }
+          if (mp && mp.playVideo) { mp.playVideo(); }
           var v = document.querySelector('video');
-          if (v && v.paused) { v.volume = \(appliedVolume); var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+          if (v && v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
           var btn = document.querySelector('#play-pause-button, tp-yt-paper-icon-button.play-pause-button, ytmusic-player-bar tp-yt-paper-icon-button[aria-label]');
           // Only click if it's currently showing "Play" (paused state).
           if (v && v.paused && btn && (btn.getAttribute('title')||'').toLowerCase().indexOf('play') === 0) { btn.click(); }
@@ -301,12 +320,16 @@ final class PlayerService: NSObject {
       setInterval(function () {
         try {
           var v = document.querySelector('video');
-          // Enforce Velvet's desired state: YTM's own player re-asserts its
-          // remembered volume and can resume playback on its own.
-          if (v && typeof window.__velvetVol === 'number' && Math.abs(v.volume - window.__velvetVol) > 0.01) {
-            v.volume = window.__velvetVol;
+          // Keep YTM's own player state aligned with Velvet's intent, via
+          // YTM's player API so there's no competing writer on the element.
+          var p = document.getElementById('movie_player');
+          if (p && typeof window.__velvetVolPct === 'number' && p.getVolume &&
+              Math.abs(p.getVolume() - window.__velvetVolPct) > 1) {
+            p.setVolume(window.__velvetVolPct);
           }
-          if (v && window.__velvetPaused === true && !v.paused) { v.pause(); }
+          if (window.__velvetPaused === true && p && p.getPlayerState && p.getPlayerState() === 1) {
+            p.pauseVideo();
+          }
           var vid = new URLSearchParams(location.search).get('v') || '';
           var ad = !!document.querySelector('.ad-showing, .ad-interrupting, ytmusic-player[ad-showing]');
           window.webkit.messageHandlers.velvet.postMessage({

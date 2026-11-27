@@ -414,7 +414,7 @@ struct BrowseItemRow: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 22)
-        .padding(.vertical, 7)
+        .padding(.vertical, 10)
         .background(hovering ? Velvet.rowHover : .clear)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
