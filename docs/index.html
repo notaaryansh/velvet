@@ -14,25 +14,28 @@
     --bg: #edeae1;
     --ink: #1c1b18;
     --muted: #6d675c;
-    --line: #dcd8cc;
+    --wave-back: #a8465a;
+    --wave-mid: #83243a;
+    --wave-front: #511423;
+    --on-wine: #f2e4e4;
+    --on-wine-muted: #c9a7ab;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: var(--bg);
+    background: var(--wave-front);
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.6;
   }
-  .wrap {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 0 24px;
-  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  .top, .hero { background: var(--bg); }
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 20px 0;
+    position: relative;
+    z-index: 2;
   }
   .brand {
     display: flex;
@@ -44,15 +47,8 @@
     text-decoration: none;
   }
   .brand img { width: 28px; height: 28px; border-radius: 7px; }
-  .nav {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-  }
-  .gh {
-    display: flex;
-    color: var(--muted);
-  }
+  .nav { display: flex; align-items: center; gap: 18px; }
+  .gh { display: flex; color: var(--muted); }
   .gh:hover { color: var(--ink); }
   .gh svg { width: 26px; height: 26px; }
   .pill {
@@ -65,49 +61,105 @@
     border-radius: 999px;
   }
   .pill:hover { background: #33312c; }
-  main { text-align: center; padding: 56px 0 0; }
-  h1 {
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    padding-top: 48px;
+  }
+  .hero h1 {
     font-size: clamp(2rem, 5vw, 3rem);
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.15;
   }
-  .sub {
+  .hero .sub {
     margin: 16px auto 0;
     max-width: 32em;
     font-size: 1.1rem;
     color: var(--muted);
   }
   .shot {
-    margin-top: 48px;
+    position: relative;
+    z-index: 1;
+    max-width: 880px;
+    margin: 56px auto 0;
+    padding: 0 24px;
   }
   .shot img {
     width: 100%;
     border-radius: 12px;
-    box-shadow: 0 20px 50px rgba(28,27,24,.18);
+    box-shadow: 0 30px 60px rgba(44,10,18,.45);
     display: block;
   }
+  .waves {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 46%;
+    min-height: 240px;
+    pointer-events: none;
+  }
+  .wave {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+  .wave svg {
+    display: block;
+    width: 200%;
+    height: 100%;
+  }
+  .wave-back  { height: 100%; }
+  .wave-mid   { height: 72%; }
+  .wave-front { height: 44%; }
+  .wave-back svg  { animation: drift 38s linear infinite; }
+  .wave-mid svg   { animation: drift 26s linear infinite reverse; }
+  .wave-front svg { animation: drift 18s linear infinite; }
+  @keyframes drift {
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wave svg { animation: none; }
+  }
+  .hero-end {
+    position: relative;
+    z-index: 1;
+    height: 72px;
+  }
+
+  .wine {
+    background: var(--wave-front);
+    color: var(--on-wine-muted);
+    padding: 8px 0 8px;
+  }
   .points {
-    margin: 56px auto 0;
+    margin: 0 auto;
     max-width: 34em;
     text-align: left;
+    padding: 40px 24px 8px;
   }
-  .points p { margin-top: 14px; color: var(--muted); }
-  .points p strong { color: var(--ink); font-weight: 600; }
-  .points a { color: var(--ink); }
+  .points p { margin-bottom: 18px; }
+  .points p strong { color: var(--on-wine); font-weight: 600; }
+  .points a { color: var(--on-wine); }
   footer {
-    margin-top: 64px;
-    padding: 24px 0 40px;
-    border-top: 1px solid var(--line);
+    margin: 32px auto 0;
+    max-width: 880px;
+    padding: 24px 24px 40px;
+    border-top: 1px solid rgba(242,228,228,.18);
     text-align: center;
     font-size: .9rem;
-    color: var(--muted);
   }
-  footer a { color: var(--ink); }
-  a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  footer a { color: var(--on-wine); }
+  a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 </style>
 </head>
 <body>
+<div class="top">
 <div class="wrap">
   <header>
     <a class="brand" href="#"><img src="icon.png" alt="">Velvet</a>
@@ -118,25 +170,46 @@
       <a class="pill" href="https://github.com/notaaryansh/velvet/releases/latest">Download</a>
     </nav>
   </header>
+</div>
+</div>
 
-  <main>
-    <h1>A Mac app for YouTube Music.</h1>
-    <p class="sub">Velvet plays YouTube Music in a fast, native app. Sign in once and your playlists, likes, and history are all there.</p>
+<section class="hero">
+  <h1>A Mac app for YouTube Music.</h1>
+  <p class="sub">Velvet plays YouTube Music in a fast, native app. Sign in once and your playlists, likes, and history are all there.</p>
 
-    <div class="shot">
-      <img src="screenshot.png" alt="Velvet showing the Discover page with recently played albums and a song playing at the bottom">
+  <div class="waves" aria-hidden="true">
+    <div class="wave wave-back">
+      <svg viewBox="0 0 2880 320" preserveAspectRatio="none">
+        <path fill="var(--wave-back)" d="M0,110 Q180,40 360,110 T720,110 T1080,110 T1440,110 T1800,110 T2160,110 T2520,110 T2880,110 L2880,320 L0,320 Z"/>
+      </svg>
     </div>
-
-    <div class="points">
-      <p><strong>It feels at home on your Mac.</strong> Not a website in a window. It opens fast, stays light, and pages show up instantly.</p>
-      <p><strong>The music keeps going.</strong> Close the window and the song keeps playing. There is also a small mini player you can drag anywhere.</p>
-      <p><strong>Want something it does not do yet?</strong> <a href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a> on GitHub. Every request gets read.</p>
+    <div class="wave wave-mid">
+      <svg viewBox="0 0 2880 320" preserveAspectRatio="none">
+        <path fill="var(--wave-mid)" d="M0,120 Q240,40 480,120 T960,120 T1440,120 T1920,120 T2400,120 T2880,120 L2880,320 L0,320 Z"/>
+      </svg>
     </div>
-  </main>
+    <div class="wave wave-front">
+      <svg viewBox="0 0 2880 320" preserveAspectRatio="none">
+        <path fill="var(--wave-front)" d="M0,130 Q180,60 360,130 T720,130 T1080,130 T1440,130 T1800,130 T2160,130 T2520,130 T2880,130 L2880,320 L0,320 Z"/>
+      </svg>
+    </div>
+  </div>
 
+  <div class="shot">
+    <img src="screenshot.png" alt="Velvet showing the Discover page with recently played albums and a song playing at the bottom">
+  </div>
+  <div class="hero-end"></div>
+</section>
+
+<section class="wine">
+  <div class="points">
+    <p><strong>It feels at home on your Mac.</strong> Not a website in a window. It opens fast, stays light, and pages show up instantly.</p>
+    <p><strong>The music keeps going.</strong> Close the window and the song keeps playing. There is also a small mini player you can drag anywhere.</p>
+    <p><strong>Want something it does not do yet?</strong> <a href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a> on GitHub. Every request gets read.</p>
+  </div>
   <footer>
     Free and open source. Needs macOS 15 or later. <a href="https://github.com/notaaryansh/velvet">GitHub</a>
   </footer>
-</div>
+</section>
 </body>
 </html>
