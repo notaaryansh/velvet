@@ -26,7 +26,9 @@ final class PlayerService: NSObject {
     var progress: Double = 0
     var duration: Double = 0
     var volume: Double = 1.0
+    var shuffleEnabled = false
     var lastTickAt: Date = .distantPast
+    @ObservationIgnored private var unshuffledQueue: [Track] = []
     /// True after the user explicitly paused; the auto-start nudges must
     /// never override this, only an explicit play clears it.
     @ObservationIgnored private var userPaused = false
@@ -116,8 +118,33 @@ final class PlayerService: NSObject {
         }
         queue = tracks
         index = i
-        RecentsStore.shared.record(tracks[i])
-        load(tracks[i])
+        if shuffleEnabled { applyShuffle() }
+        RecentsStore.shared.record(queue[index])
+        load(queue[index])
+    }
+
+    /// Shuffle on: current track leads, the rest of the queue randomized.
+    /// Shuffle off: the original order returns, cursor back on the current.
+    func toggleShuffle() {
+        shuffleEnabled.toggle()
+        guard !queue.isEmpty else { return }
+        if shuffleEnabled {
+            applyShuffle()
+        } else if !unshuffledQueue.isEmpty {
+            let playing = queue[index]
+            queue = unshuffledQueue
+            index = queue.firstIndex(of: playing) ?? 0
+        }
+    }
+
+    private func applyShuffle() {
+        unshuffledQueue = queue
+        let playing = queue[index]
+        var rest = queue
+        rest.remove(at: index)
+        rest.shuffle()
+        queue = [playing] + rest
+        index = 0
     }
 
     func togglePlay() {
@@ -133,14 +160,36 @@ final class PlayerService: NSObject {
     }
 
     func next() {
-        guard hasNext else {
-            eval("window.__velvetPaused = true; var p = document.getElementById('movie_player'); if (p && p.pauseVideo) { p.pauseVideo(); } else { document.querySelector('video')?.pause(); }")
-            isPlaying = false
-            isBuffering = false
+        if index + 1 < queue.count {
+            index += 1
+            load(queue[index])
             return
         }
-        index += 1
-        load(queue[index])
+        guard let cur = current else { return }
+        if shuffleEnabled {
+            // End of queue with shuffle on: keep going with YTM's
+            // suggestions, like the official client's autoplay.
+            isBuffering = true
+            Task { @MainActor in
+                let recent = Set(queue.suffix(40).map(\.id))
+                let fresh = ((try? await YTMusicClient.shared.related(cur.id)) ?? [])
+                    .filter { !recent.contains($0.id) }
+                    .prefix(25)
+                if fresh.isEmpty {
+                    index = 0
+                } else {
+                    queue += fresh
+                    if !unshuffledQueue.isEmpty { unshuffledQueue += fresh }
+                    index += 1
+                }
+                RecentsStore.shared.record(queue[index])
+                load(queue[index])
+            }
+        } else {
+            // Shuffle off: loop the queue.
+            index = 0
+            load(queue[index])
+        }
     }
 
     func previous() {
