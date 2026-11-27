@@ -4,7 +4,7 @@
 
 <h1 align="center">Velvet</h1>
 
-<p align="center">A native macOS client for YouTube Music — SwiftUI, no Electron.</p>
+<p align="center">A native macOS client for YouTube Music.</p>
 
 <p align="center">
   <img src="Assets/screenshot.png" width="820" alt="Velvet — Discover">
