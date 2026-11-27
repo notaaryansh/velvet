@@ -7,7 +7,9 @@ import SwiftUI
 /// red tint over the dark backdrop, not a picture.
 struct WavesBackground: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+        // 12fps is plenty — the drift is ultra slow, and each frame re-renders
+        // through the 55pt blur, so frame rate is the main idle CPU cost.
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
             Canvas { ctx, size in
                 let t = timeline.date.timeIntervalSinceReferenceDate
 

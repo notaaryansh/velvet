@@ -285,6 +285,18 @@ struct MainView: View {
     @State private var player = PlayerService.shared
     @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
 
+    // Launch gating: the wave splash stays up until the preloads land
+    // (with a minimum display so it never flashes, and a cap so a dead
+    // network can't trap the user on it).
+    @State private var discoverWarm = false
+    @State private var libraryWarm = false
+    @State private var minSplashElapsed = false
+    @State private var splashTimedOut = false
+
+    private var showLaunch: Bool {
+        !splashTimedOut && !(discoverWarm && libraryWarm && minSplashElapsed)
+    }
+
     var body: some View {
         ZStack {
             // One backdrop for the whole window — the icon's waves breathe
@@ -348,6 +360,15 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
+        // The launch waves sit over everything and crossfade away slowly
+        // once the preloads land.
+        .overlay {
+            if showLaunch {
+                LaunchWaves()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.5), value: showLaunch)
         // Warm every top-level page at launch so switching tabs or sidebar
         // sections never shows a loading state.
         .task {
@@ -355,8 +376,18 @@ struct MainView: View {
             async let charts: Void = discoverModel.load(.charts)
             async let fresh: Void = discoverModel.load(.newReleases)
             _ = await (home, charts, fresh)
+            discoverWarm = true
         }
-        .task(id: auth.isLoggedIn) {
+        .task {
+            try? await Task.sleep(for: .seconds(1.6))
+            minSplashElapsed = true
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(8))
+            splashTimedOut = true
+        }
+        .task(id: "\(auth.resolved)-\(auth.isLoggedIn)") {
+            guard auth.resolved else { return }
             if auth.isLoggedIn {
                 async let liked: Void = likedModel.reload()
                 async let playlists: Void = playlistsModel.reload()
@@ -367,6 +398,7 @@ struct MainView: View {
             } else {
                 LikesStore.shared.reset()
             }
+            libraryWarm = true
         }
     }
 }
