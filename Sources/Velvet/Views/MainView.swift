@@ -439,8 +439,6 @@ struct Sidebar: View {
     @Binding var section: NavSection
     var auth: AuthManager
     var onReTap: () -> Void = {}
-    @State private var showSettings = false
-    @State private var hoverAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -474,77 +472,8 @@ struct Sidebar: View {
 
             Spacer()
 
-            Divider().padding(.horizontal, 12)
-
-            // Footer rows share the nav items' exact geometry: 20pt icon
-            // column, same padding, same hover treatment.
-            VStack(alignment: .leading, spacing: 2) {
-                if !auth.resolved {
-                    SidebarFooterRow(hovering: false) {
-                        ProgressView().controlSize(.small).scaleEffect(0.6)
-                            .frame(width: 20)
-                        Text("Checking session…")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                } else if auth.isLoggedIn {
-                    Menu {
-                        Text(auth.accountName ?? "Signed in")
-                        if let handle = auth.accountHandle { Text(handle) }
-                        Divider()
-                        Button("Settings…") { showSettings = true }
-                        Divider()
-                        Button("Sign Out", role: .destructive) {
-                            Task { await auth.signOut() }
-                        }
-                    } label: {
-                        SidebarFooterRow(hovering: hoverAccount) {
-                            // 18pt image centered in the 20pt glyph column,
-                            // matching the nav symbols' optical size.
-                            Artwork(url: auth.accountPhoto) {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(width: 18, height: 18)
-                            .clipShape(Circle())
-                            .frame(width: 20)
-                            Text(auth.accountName ?? "Signed in")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color.primary.opacity(0.85))
-                                .lineLimit(1)
-                            Spacer()
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .menuStyle(.button)
-                    .buttonStyle(.plain)
-                    .menuIndicator(.hidden)
-                    .onHover { hoverAccount = $0 }
-                } else {
-                    Button {
-                        auth.showLogin = true
-                    } label: {
-                        SidebarFooterRow(hovering: hoverAccount) {
-                            Image(systemName: "person.crop.circle")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Velvet.accent)
-                                .frame(width: 20)
-                            Text("Sign in")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Velvet.accent)
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hoverAccount = $0 }
-                }
-
-                // Brand row: the wordmark lives down here; Settings moved
-                // into the account dropdown above.
+            // Brand row, level with the player bar (64pt + divider).
+            HStack {
                 SidebarFooterRow(hovering: false) {
                     AppIconMark(size: 18)
                         .frame(width: 20)
@@ -557,9 +486,60 @@ struct Sidebar: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .sheet(isPresented: $showSettings) { SettingsSheet() }
+            .frame(height: 64)
         }
+    }
+}
+
+/// Account avatar + dropdown (settings, sign out), top-right of the content.
+struct AccountMenu: View {
+    @State private var auth = AuthManager.shared
+    @State private var showSettings = false
+
+    var body: some View {
+        Group {
+            if !auth.resolved {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                    .frame(width: 28, height: 28)
+            } else if auth.isLoggedIn {
+                Menu {
+                    Text(auth.accountName ?? "Signed in")
+                    if let handle = auth.accountHandle { Text(handle) }
+                    Divider()
+                    Button("Settings…") { showSettings = true }
+                    Divider()
+                    Button("Sign Out", role: .destructive) {
+                        Task { await auth.signOut() }
+                    }
+                } label: {
+                    Artwork(url: auth.accountPhoto) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 28, height: 28)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.14)))
+                    .contentShape(Circle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(auth.accountName ?? "Account")
+            } else {
+                Button { auth.showLogin = true } label: {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Velvet.accent)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Sign in")
+            }
+        }
+        .sheet(isPresented: $showSettings) { SettingsSheet() }
     }
 }
 

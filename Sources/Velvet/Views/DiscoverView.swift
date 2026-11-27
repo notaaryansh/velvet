@@ -139,6 +139,7 @@ struct DiscoverView: View {
             if searchExpanded {
                 Spacer(minLength: 0)
             }
+            AccountMenu()
         }
         .animation(.snappy(duration: 0.25), value: searchExpanded)
         .padding(.horizontal, 22)

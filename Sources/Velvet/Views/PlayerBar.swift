@@ -7,6 +7,7 @@ struct PlayerBar: View {
     @State private var player = PlayerService.shared
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
+    @State private var showVolume = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,24 +71,28 @@ struct PlayerBar: View {
         }
     }
 
+    /// Just the speaker icon; the slider lives in a click popover.
     private var volumeControl: some View {
-        HStack(spacing: 6) {
-            Button {
-                player.setVolume(player.volume > 0 ? 0 : 1)
-            } label: {
-                Image(systemName: volumeIcon)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
-            }
-            .buttonStyle(.plain)
-
+        Button {
+            showVolume.toggle()
+        } label: {
+            Image(systemName: volumeIcon)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Volume")
+        .popover(isPresented: $showVolume, arrowEdge: .top) {
             Scrubber(progress: player.volume) { frac in
                 player.setVolume(frac)
             } onCommit: { frac in
                 player.setVolume(frac)
             }
-            .frame(width: 70)
+            .frame(width: 140)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
     }
 
@@ -100,6 +105,15 @@ struct PlayerBar: View {
 
     private var transport: some View {
         HStack(spacing: 20) {
+            Button { player.toggleShuffle() } label: {
+                Image(systemName: "shuffle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(player.shuffleEnabled ? AnyShapeStyle(.white)
+                                                          : AnyShapeStyle(.secondary))
+            }
+            .buttonStyle(.plain)
+            .help(player.shuffleEnabled ? "Shuffle on" : "Shuffle off")
+
             Button { player.previous() } label: {
                 Image(systemName: "backward.fill").font(.system(size: 14))
             }
@@ -120,11 +134,13 @@ struct PlayerBar: View {
             .buttonStyle(.plain)
             .disabled(player.current == nil)
 
+            // Next is always available: it advances, loops, or pulls
+            // suggestions depending on shuffle.
             Button { player.next() } label: {
                 Image(systemName: "forward.fill").font(.system(size: 14))
             }
             .buttonStyle(.plain)
-            .disabled(!player.hasNext)
+            .disabled(player.current == nil)
         }
         .foregroundStyle(player.current == nil ? .tertiary : .primary)
     }
