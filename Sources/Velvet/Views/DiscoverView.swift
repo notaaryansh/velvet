@@ -17,7 +17,6 @@ struct DiscoverView: View {
     var model: DiscoverModel
     @Bindable var search: SearchModel
     @State private var recents = RecentsStore.shared
-    @State private var navPath: [BrowseItem] = []
     @State private var searchExpanded = false
     @State private var tab: DiscoverTab = .home
     @FocusState private var searchFocused: Bool
@@ -40,7 +39,7 @@ struct DiscoverView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $navPath) {
+        BrowseNavigationStack {
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 0) {
                     searchBar
@@ -65,17 +64,6 @@ struct DiscoverView: View {
                         .frame(maxWidth: 420 + 44, alignment: .leading)
                 }
             }
-            .navigationDestination(for: BrowseItem.self) { item in
-                switch item.kind {
-                case .artist:
-                    ArtistPageView(artistId: item.id, fallbackName: item.title, fallbackArt: item.art(400))
-                case .album, .playlist:
-                    AlbumPageView(item: item)
-                }
-            }
-        }
-        .environment(\.popNavigation) {
-            if !navPath.isEmpty { navPath.removeLast() }
         }
         .task {
             if !model.loaded { await model.reload() }
@@ -233,18 +221,31 @@ struct DiscoverView: View {
                                  action: nil)
                         .frame(height: 300)
                 }
-                ForEach(sections) { section in
-                    switch section {
-                    case .tracks(let title, let tracks):
-                        Carousel(title: title, tracks: tracks)
-                    case .items(let title, let items):
-                        BrowseCarousel(title: title, items: items)
-                    }
-                }
+                ForEach(sections) { SectionShelf(section: $0) }
             }
             .padding(.bottom, 20)
             .padding(.top, 2)
         }
+    }
+
+    private func dropdownRow(icon: String, text: String, dim: Bool = false,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                Text(text)
+                    .font(.system(size: dim ? 12 : 12.5))
+                    .foregroundStyle(dim ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SuggestionButtonStyle())
     }
 
     private var suggestionsDropdown: some View {
@@ -258,45 +259,17 @@ struct DiscoverView: View {
                     .padding(.bottom, 3)
             }
             ForEach(Array(dropdownItems.enumerated()), id: \.offset) { _, s in
-                Button {
+                dropdownRow(icon: showingRecentSearches ? "clock.arrow.circlepath" : "magnifyingglass",
+                            text: s) {
                     search.choose(s)
                     searchFocused = false
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: showingRecentSearches ? "clock.arrow.circlepath" : "magnifyingglass")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                        Text(s)
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(SuggestionButtonStyle())
             }
             if showingRecentSearches {
                 Divider().padding(.vertical, 2)
-                Button {
+                dropdownRow(icon: "trash", text: "Clear Recent Searches", dim: true) {
                     search.clearRecentSearches()
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.tertiary)
-                        Text("Clear Recent Searches")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(SuggestionButtonStyle())
             }
         }
         .padding(.vertical, 4)
@@ -337,14 +310,7 @@ struct DiscoverView: View {
                         .frame(height: 300)
                 }
 
-                ForEach(model.sections) { section in
-                    switch section {
-                    case .tracks(let title, let tracks):
-                        Carousel(title: title, tracks: tracks)
-                    case .items(let title, let items):
-                        BrowseCarousel(title: title, items: items)
-                    }
-                }
+                ForEach(model.sections) { SectionShelf(section: $0) }
             }
             .padding(.bottom, 20)
         }
@@ -463,20 +429,11 @@ struct Carousel: View {
     let tracks: [Track]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 19, weight: .bold))
-                .padding(.horizontal, 22)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(Array(tracks.enumerated()), id: \.offset) { i, track in
-                        SongCard(track: track) {
-                            PlayerService.shared.play(tracks: tracks, at: i)
-                        }
-                    }
+        Shelf(title: title) {
+            ForEach(Array(tracks.enumerated()), id: \.offset) { i, track in
+                SongCard(track: track) {
+                    PlayerService.shared.play(tracks: tracks, at: i)
                 }
-                .padding(.horizontal, 22)
             }
         }
         // Shelves are short — warm every card up front so horizontal

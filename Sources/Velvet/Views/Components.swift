@@ -49,6 +49,90 @@ struct WavesBackground: View {
     }
 }
 
+// MARK: - Shared building blocks
+
+/// Hairline divider indented past the artwork column.
+struct RowDivider: View {
+    var body: some View {
+        Divider().padding(.leading, 84).opacity(0.4)
+    }
+}
+
+/// Spinner while the session resolves, sign-in pitch when logged out,
+/// the real content once signed in.
+struct AuthGated<Content: View>: View {
+    var auth: AuthManager
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if !auth.resolved {
+            ProgressView().controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !auth.isLoggedIn {
+            SignedOutState(auth: auth)
+        } else {
+            content()
+        }
+    }
+}
+
+/// Titled horizontal shelf — the one layout behind every carousel.
+struct Shelf<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+                .padding(.horizontal, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 16, content: content)
+                    .padding(.horizontal, 22)
+            }
+        }
+    }
+}
+
+/// Renders one Discover shelf, whichever kind it is.
+struct SectionShelf: View {
+    let section: HomeSection
+
+    var body: some View {
+        switch section {
+        case .tracks(let title, let tracks):
+            Carousel(title: title, tracks: tracks)
+        case .items(let title, let items):
+            BrowseCarousel(title: title, items: items)
+        }
+    }
+}
+
+/// NavigationStack over BrowseItems with the shared destination mapping and
+/// the pop action the in-header back buttons use.
+struct BrowseNavigationStack<Content: View>: View {
+    @State private var navPath: [BrowseItem] = []
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        NavigationStack(path: $navPath) {
+            content()
+                .navigationDestination(for: BrowseItem.self) { item in
+                    switch item.kind {
+                    case .artist:
+                        ArtistPageView(artistId: item.id, fallbackName: item.title,
+                                       fallbackArt: item.art(400))
+                    case .album, .playlist:
+                        AlbumPageView(item: item)
+                    }
+                }
+        }
+        .environment(\.popNavigation) {
+            if !navPath.isEmpty { navPath.removeLast() }
+        }
+    }
+}
+
 // MARK: - Track list (Apple Music style)
 
 struct TrackList: View {

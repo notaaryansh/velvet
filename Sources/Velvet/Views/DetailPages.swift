@@ -100,7 +100,7 @@ struct ArtistPageView: View {
                                         PlayerService.shared.play(tracks: page.topSongs, at: i)
                                     }
                                     if i < page.topSongs.count - 1 {
-                                        Divider().padding(.leading, 84).opacity(0.4)
+                                        RowDivider()
                                     }
                                 }
                             }
@@ -229,7 +229,7 @@ struct AlbumPageView: View {
                                 PlayerService.shared.play(tracks: tracks, at: i)
                             }
                             if i < tracks.count - 1 {
-                                Divider().padding(.leading, 84).opacity(0.4)
+                                RowDivider()
                             }
                         }
                     }
@@ -326,18 +326,12 @@ struct BrowseCarousel: View {
     let items: [BrowseItem]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 19, weight: .bold)).padding(.horizontal, 22)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            BrowseCard(item: item)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        Shelf(title: title) {
+            ForEach(items) { item in
+                NavigationLink(value: item) {
+                    BrowseCard(item: item)
                 }
-                .padding(.horizontal, 22)
+                .buttonStyle(.plain)
             }
         }
         .onAppear { ArtworkCache.shared.prefetch(items.map { $0.art(300) }) }

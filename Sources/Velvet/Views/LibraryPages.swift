@@ -32,16 +32,10 @@ final class PlaylistsModel {
 struct PlaylistsView: View {
     var model: PlaylistsModel
     var auth: AuthManager
-    @State private var navPath: [BrowseItem] = []
 
     var body: some View {
-        if !auth.resolved {
-            ProgressView().controlSize(.small)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if !auth.isLoggedIn {
-            SignedOutState(auth: auth)
-        } else {
-            NavigationStack(path: $navPath) {
+        AuthGated(auth: auth) {
+            BrowseNavigationStack {
                 Group {
                     if model.items.isEmpty {
                         StateMessage(icon: "music.note.list",
@@ -63,24 +57,13 @@ struct PlaylistsView: View {
                                         BrowseItemRow(item: item)
                                     }
                                     .buttonStyle(.plain)
-                                    Divider().padding(.leading, 84).opacity(0.4)
+                                    RowDivider()
                                 }
                             }
                             .padding(.bottom, 16)
                         }
                     }
                 }
-                .navigationDestination(for: BrowseItem.self) { item in
-                    switch item.kind {
-                    case .artist:
-                        ArtistPageView(artistId: item.id, fallbackName: item.title, fallbackArt: item.art(400))
-                    case .album, .playlist:
-                        AlbumPageView(item: item)
-                    }
-                }
-            }
-            .environment(\.popNavigation) {
-                if !navPath.isEmpty { navPath.removeLast() }
             }
             .task { if model.items.isEmpty { await model.reload() } }
         }
@@ -114,12 +97,12 @@ struct HistoryView: View {
     var auth: AuthManager
 
     var body: some View {
-        if !auth.resolved {
-            ProgressView().controlSize(.small)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if !auth.isLoggedIn {
-            SignedOutState(auth: auth)
-        } else if model.sections.isEmpty {
+        AuthGated(auth: auth) { historyContent }
+    }
+
+    @ViewBuilder
+    private var historyContent: some View {
+        if model.sections.isEmpty {
             StateMessage(icon: "clock.arrow.circlepath",
                          title: model.isLoading ? "Loading…" : "No History",
                          text: model.isLoading
@@ -146,7 +129,7 @@ struct HistoryView: View {
                                 PlayerService.shared.play(tracks: section.tracks, at: i)
                             }
                             if i < section.tracks.count - 1 {
-                                Divider().padding(.leading, 84).opacity(0.4)
+                                RowDivider()
                             }
                         }
                     }
