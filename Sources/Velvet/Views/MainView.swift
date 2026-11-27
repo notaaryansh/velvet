@@ -544,8 +544,10 @@ struct Sidebar: View {
                     AppIconMark(size: 18)
                         .frame(width: 20)
                     Text("Velvet")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(colors: [Color(hex: 0xE3A7C0), Color(hex: 0xA84860)],
+                                           startPoint: .top, endPoint: .bottom))
                     Spacer()
                 }
             }
