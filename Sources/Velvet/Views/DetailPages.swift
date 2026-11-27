@@ -9,10 +9,12 @@ final class ArtistPageModel {
     var isLoading = true
 
     func load(_ id: String) async {
-        // Cached page renders instantly; a quiet refresh follows.
-        if let cached = PageCache.shared.artists[id] {
+        // A fresh page from the moving window renders instantly with NO
+        // network touch at all; only stale entries refresh quietly.
+        if let (cached, isFresh) = PageCache.shared.artist(id) {
             page = cached
             isLoading = false
+            if isFresh { return }
         } else {
             isLoading = true
         }
@@ -26,7 +28,7 @@ final class ArtistPageModel {
                                                  topSongs: fresh.topSongs, sections: fresh.sections)
             }
             page = fresh
-            PageCache.shared.artists[id] = fresh
+            PageCache.shared.setArtist(fresh, for: id)
         }
         isLoading = false
     }
@@ -155,10 +157,12 @@ final class AlbumPageModel {
     var isLoading = true
 
     func load(_ id: String) async {
-        // Cached page renders instantly; a quiet refresh follows.
-        if let cached = PageCache.shared.albums[id] {
+        // A fresh page from the moving window renders instantly with NO
+        // network touch at all; only stale entries refresh quietly.
+        if let (cached, isFresh) = PageCache.shared.album(id) {
             page = cached
             isLoading = false
+            if isFresh { return }
         } else {
             isLoading = true
         }
@@ -168,7 +172,7 @@ final class AlbumPageModel {
                                                 thumbnail: keep, tracks: fresh.tracks)
             }
             page = fresh
-            PageCache.shared.albums[id] = fresh
+            PageCache.shared.setAlbum(fresh, for: id)
         }
         isLoading = false
     }
