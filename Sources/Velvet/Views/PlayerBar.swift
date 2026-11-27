@@ -13,9 +13,9 @@ struct PlayerBar: View {
             Divider().opacity(0.6)
             HStack(spacing: 14) {
                 nowPlaying
-                    // Natural width (capped) — a fixed 240pt block left a
-                    // dead gap between short titles and the transport.
-                    .frame(minWidth: 140, maxWidth: 240, alignment: .leading)
+                    // Tight fixed column: flexible sizing kept ballooning to
+                    // its cap and leaving a dead gap before the transport.
+                    .frame(width: 180, alignment: .leading)
 
                 transport
 

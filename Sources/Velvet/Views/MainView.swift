@@ -445,7 +445,9 @@ struct Sidebar: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.top, 48)
+            // Matches the content column's 30pt top so the Discover row
+            // sits level with the Home/Charts tab row.
+            .padding(.top, 30)
 
             Spacer()
 
