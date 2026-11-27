@@ -140,7 +140,7 @@ struct HistoryView: View {
                             .padding(.top, 18)
                             .padding(.bottom, 6)
                         ForEach(Array(section.tracks.enumerated()), id: \.element.id) { i, t in
-                            TrackRow(track: t, number: i + 1) {
+                            TrackRow(track: t, number: nil) {
                                 PlayerService.shared.play(tracks: section.tracks, at: i)
                             }
                             if i < section.tracks.count - 1 {

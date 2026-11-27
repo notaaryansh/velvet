@@ -160,7 +160,7 @@ struct StateMessage: View {
 
 struct TrackRow: View {
     let track: Track
-    let number: Int
+    let number: Int?   // nil hides the index (e.g. History)
     let onPlay: () -> Void
 
     @State private var hovering = false
@@ -182,7 +182,7 @@ struct TrackRow: View {
                     Image(systemName: "play.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.primary)
-                } else {
+                } else if let number {
                     Text("\(number)")
                         .font(.system(size: 12, design: .default))
                         .foregroundStyle(.tertiary)
