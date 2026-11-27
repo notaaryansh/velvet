@@ -8,6 +8,16 @@ final class ArtistPageModel {
     var page: YTMusicClient.ArtistPage?
     var isLoading = true
 
+    /// Prefill from the cache at construction so the FIRST rendered frame
+    /// already has every row — .task runs after first render, which left
+    /// a ~100ms empty-list flash even on cache hits.
+    init(prefill: YTMusicClient.ArtistPage? = nil) {
+        if let prefill {
+            page = prefill
+            isLoading = false
+        }
+    }
+
     func load(_ id: String) async {
         // A fresh page from the moving window renders instantly with NO
         // network touch at all; only stale entries refresh quietly.
@@ -58,7 +68,15 @@ struct HeaderBackButton: View {
 struct ArtistPageView: View {
     let artistId: String
     let fallbackName: String
-    @State private var model = ArtistPageModel()
+    @State private var model: ArtistPageModel
+
+    @MainActor
+    init(artistId: String, fallbackName: String) {
+        self.artistId = artistId
+        self.fallbackName = fallbackName
+        _model = State(initialValue: ArtistPageModel(
+            prefill: PageCache.shared.artist(artistId)?.page))
+    }
 
     var body: some View {
         ScrollView(showsIndicators: true) {
@@ -156,6 +174,13 @@ final class AlbumPageModel {
     var page: YTMusicClient.AlbumPage?
     var isLoading = true
 
+    init(prefill: YTMusicClient.AlbumPage? = nil) {
+        if let prefill {
+            page = prefill
+            isLoading = false
+        }
+    }
+
     func load(_ id: String) async {
         // A fresh page from the moving window renders instantly with NO
         // network touch at all; only stale entries refresh quietly.
@@ -180,7 +205,14 @@ final class AlbumPageModel {
 
 struct AlbumPageView: View {
     let item: BrowseItem
-    @State private var model = AlbumPageModel()
+    @State private var model: AlbumPageModel
+
+    @MainActor
+    init(item: BrowseItem) {
+        self.item = item
+        _model = State(initialValue: AlbumPageModel(
+            prefill: PageCache.shared.album(item.id)?.page))
+    }
 
     var body: some View {
         ScrollView(showsIndicators: true) {
