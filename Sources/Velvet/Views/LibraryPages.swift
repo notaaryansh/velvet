@@ -7,6 +7,8 @@ import Observation
 @Observable
 final class PlaylistsModel {
     var items: [BrowseItem] = []
+    /// Bumped on sidebar re-tap; pops the stack back to the list.
+    var resetPulse = 0
     var isLoading = false
     var error: String?
 
@@ -35,7 +37,7 @@ struct PlaylistsView: View {
 
     var body: some View {
         AuthGated(auth: auth) {
-            BrowseNavigationStack {
+            BrowseNavigationStack(resetPulse: model.resetPulse) {
                 Group {
                     if model.items.isEmpty {
                         StateMessage(icon: "music.note.list",

@@ -338,8 +338,12 @@ struct MainView: View {
                 // Sidebar runs the full window height; the player bar lives
                 // only under the content column.
                 Sidebar(section: $section, auth: auth) {
-                    // Re-tapping Discover resets it to the root feed.
-                    if section == .discover { discoverModel.resetPulse += 1 }
+                    // Re-tapping a section resets it to its root screen.
+                    switch section {
+                    case .discover: discoverModel.resetPulse += 1
+                    case .playlists: playlistsModel.resetPulse += 1
+                    default: break
+                    }
                 }
                 .frame(width: 214)
                 .background(Color.black.opacity(0.14).ignoresSafeArea())
