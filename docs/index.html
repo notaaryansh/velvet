@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velvet — YouTube Music for Mac</title>
+<meta name="description" content="Velvet is a small, fast Mac app for playing YouTube Music. Free and open source.">
+<link rel="icon" href="icon.png">
+<meta property="og:title" content="Velvet — YouTube Music for Mac">
+<meta property="og:description" content="A small, fast Mac app for playing YouTube Music. Free and open source.">
+<meta property="og:image" content="https://notaaryansh.github.io/velvet/screenshot.png">
+<style>
+  :root {
+    --bg: #251b20;
+    --bg-deep: #1b1317;
+    --card: #332329;
+    --text: #f3eaec;
+    --muted: #b49ca4;
+    --red: #e5484d;
+    --red-press: #c93a3f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: linear-gradient(175deg, var(--bg-deep) 0%, var(--bg) 38%, #30222a 100%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 72px 24px 64px;
+    text-align: center;
+  }
+  .icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+  h1 {
+    margin-top: 28px;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+  }
+  .sub {
+    margin: 18px auto 0;
+    max-width: 34em;
+    font-size: 1.15rem;
+    color: var(--muted);
+  }
+  .sub strong { color: var(--text); font-weight: 600; }
+  .actions {
+    margin-top: 36px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block;
+    padding: 13px 26px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color .15s ease, border-color .15s ease;
+  }
+  .btn-red {
+    background: var(--red);
+    color: #fff;
+  }
+  .btn-red:hover { background: var(--red-press); }
+  .btn-quiet {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(243,234,236,.28);
+  }
+  .btn-quiet:hover { border-color: rgba(243,234,236,.6); }
+  .fineprint {
+    margin-top: 14px;
+    font-size: .85rem;
+    color: var(--muted);
+  }
+  .shot {
+    margin-top: 56px;
+  }
+  .shot img {
+    width: 100%;
+    max-width: 920px;
+    border-radius: 14px;
+    border: 1px solid rgba(243,234,236,.1);
+    box-shadow: 0 30px 70px rgba(0,0,0,.55);
+    display: block;
+  }
+  .plain {
+    margin: 64px auto 0;
+    max-width: 36em;
+    text-align: left;
+  }
+  .plain p {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+  .plain p strong { color: var(--text); font-weight: 600; }
+  footer {
+    margin-top: 72px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(243,234,236,.1);
+    font-size: .9rem;
+    color: var(--muted);
+  }
+  footer a { color: var(--text); }
+  a:focus-visible, .btn:focus-visible {
+    outline: 2px solid var(--red);
+    outline-offset: 3px;
+  }
+  .plain a {
+    color: var(--text);
+    text-decoration-color: var(--red);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+  .plain a:hover { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <img class="icon" src="icon.png" alt="Velvet app icon" width="96" height="96">
+  <h1>Your music, in a real Mac&nbsp;app.</h1>
+  <p class="sub">Velvet plays <strong>YouTube Music</strong> in a fast, good-looking app made just for the Mac. Sign in once and everything is there — your playlists, your likes, your history.</p>
+
+  <div class="actions">
+    <a class="btn btn-red" href="https://github.com/notaaryansh/velvet/releases/latest">Download for Mac</a>
+    <a class="btn btn-quiet" href="https://github.com/notaaryansh/velvet">See the code on GitHub</a>
+    <a class="btn btn-quiet" href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a>
+  </div>
+  <p class="fineprint">Free. Needs macOS 15 or later.</p>
+
+  <div class="shot">
+    <img src="screenshot.png" alt="Velvet showing the Discover page with recently played albums and a song playing at the bottom">
+  </div>
+
+  <section class="plain">
+    <p><strong>It feels like it belongs on your Mac.</strong> Velvet is not a website in a window. It opens fast, stays light, and pages show up instantly.</p>
+    <p><strong>Everything you already have is here.</strong> Your liked songs, playlists, listening history, charts, and new releases — the same account, the same music.</p>
+    <p><strong>The music keeps going.</strong> Close the window and the song keeps playing. There is also a small always-on-top mini player you can drag anywhere.</p>
+    <p><strong>Want something it does not do yet?</strong> <a href="https://github.com/notaaryansh/velvet/issues/new">Ask for it here</a> — it takes a minute and every request gets read.</p>
+  </section>
+
+  <footer>
+    Made by <a href="https://github.com/notaaryansh">notaaryansh</a> · <a href="https://github.com/notaaryansh/velvet">GitHub</a> · <a href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a>
+  </footer>
+</main>
+</body>
+</html>
