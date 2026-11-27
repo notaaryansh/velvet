@@ -29,6 +29,13 @@ final class AuthManager {
     }
 
     func refresh() async {
+        // Dev preview: render the signed-out experience without touching the
+        // real session (`VELVET_PREVIEW_SIGNED_OUT=1 Velvet.app/...`).
+        if ProcessInfo.processInfo.environment["VELVET_PREVIEW_SIGNED_OUT"] == "1" {
+            resolved = true
+            if isLoggedIn { isLoggedIn = false; EventBus.shared.post(.authChanged(false)) }
+            return
+        }
         var has = await hasAuthCookies()
         // On a cold launch the default data store can report no cookies for a
         // moment before it finishes reading from disk. Before the first

@@ -111,6 +111,7 @@ struct SectionShelf: View {
 /// NavigationStack over BrowseItems with the shared destination mapping and
 /// the pop action the in-header back buttons use.
 struct BrowseNavigationStack<Content: View>: View {
+    var resetPulse: Int = 0
     @State private var navPath: [BrowseItem] = []
     @ViewBuilder var content: () -> Content
 
@@ -130,6 +131,7 @@ struct BrowseNavigationStack<Content: View>: View {
         .environment(\.popNavigation) {
             if !navPath.isEmpty { navPath.removeLast() }
         }
+        .onChange(of: resetPulse) { navPath.removeAll() }
     }
 }
 

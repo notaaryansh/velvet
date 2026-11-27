@@ -109,6 +109,11 @@ final class PlayerService: NSObject {
 
     func play(tracks: [Track], at i: Int) {
         guard tracks.indices.contains(i) else { return }
+        // Browsing is open; listening needs the account.
+        guard AuthManager.shared.isLoggedIn else {
+            AuthManager.shared.showLogin = true
+            return
+        }
         queue = tracks
         index = i
         RecentsStore.shared.record(tracks[i])
@@ -120,7 +125,7 @@ final class PlayerService: NSObject {
         if isPlaying {
             userPaused = true
             isBuffering = false
-            eval("document.querySelector('video')?.pause()")
+            eval("window.__velvetPaused = true; document.querySelector('video')?.pause()")
         } else {
             userPaused = false
             forcePlay()
@@ -129,7 +134,7 @@ final class PlayerService: NSObject {
 
     func next() {
         guard hasNext else {
-            eval("document.querySelector('video')?.pause()")
+            eval("window.__velvetPaused = true; document.querySelector('video')?.pause()")
             isPlaying = false
             isBuffering = false
             return
@@ -166,7 +171,7 @@ final class PlayerService: NSObject {
     private var appliedVolume: Double { volume * volume }
 
     private func applyVolume() {
-        eval("(function(){var v=document.querySelector('video'); if(v){v.volume=\(appliedVolume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
+        eval("(function(){window.__velvetVol=\(appliedVolume); var v=document.querySelector('video'); if(v){v.volume=\(appliedVolume); v.muted=\(volume <= 0 ? "true" : "false");}})()")
     }
 
     /// Robust start: try the <video> element AND click YouTube Music's own
@@ -174,6 +179,8 @@ final class PlayerService: NSObject {
     private func forcePlay() {
         eval("""
         (function(){
+          window.__velvetPaused = false;
+          window.__velvetVol = \(appliedVolume);
           var v = document.querySelector('video');
           if (v && v.paused) { v.volume = \(appliedVolume); var p = v.play(); if (p && p.catch) p.catch(function(){}); }
           var btn = document.querySelector('#play-pause-button, tp-yt-paper-icon-button.play-pause-button, ytmusic-player-bar tp-yt-paper-icon-button[aria-label]');
@@ -294,6 +301,12 @@ final class PlayerService: NSObject {
       setInterval(function () {
         try {
           var v = document.querySelector('video');
+          // Enforce Velvet's desired state: YTM's own player re-asserts its
+          // remembered volume and can resume playback on its own.
+          if (v && typeof window.__velvetVol === 'number' && Math.abs(v.volume - window.__velvetVol) > 0.01) {
+            v.volume = window.__velvetVol;
+          }
+          if (v && window.__velvetPaused === true && !v.paused) { v.pause(); }
           var vid = new URLSearchParams(location.search).get('v') || '';
           var ad = !!document.querySelector('.ad-showing, .ad-interrupting, ytmusic-player[ad-showing]');
           window.webkit.messageHandlers.velvet.postMessage({
