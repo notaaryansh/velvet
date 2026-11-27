@@ -5,11 +5,8 @@ import AppKit
 
 enum Velvet {
     static let accent   = Color(hex: 0xFC3C44)   // Apple Music red
-    static let accentDim = Color(hex: 0xC4303A)
     static let text     = Color.primary
     static let secondary = Color.secondary
-    static let tertiary = Color(nsColor: .tertiaryLabelColor)
-    static let separator = Color(nsColor: .separatorColor)
     static let rowHover  = Color.primary.opacity(0.06)
     static let artPlaceholder = Color(nsColor: .quaternaryLabelColor)
 }

@@ -7,7 +7,9 @@ import SwiftUI
 /// red tint over the dark backdrop, not a picture.
 struct WavesBackground: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+        // 12fps is plenty — the drift is ultra slow, and each frame re-renders
+        // through the 55pt blur, so frame rate is the main idle CPU cost.
+        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
             Canvas { ctx, size in
                 let t = timeline.date.timeIntervalSinceReferenceDate
 
@@ -44,6 +46,90 @@ struct WavesBackground: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Shared building blocks
+
+/// Hairline divider indented past the artwork column.
+struct RowDivider: View {
+    var body: some View {
+        Divider().padding(.leading, 84).opacity(0.4)
+    }
+}
+
+/// Spinner while the session resolves, sign-in pitch when logged out,
+/// the real content once signed in.
+struct AuthGated<Content: View>: View {
+    var auth: AuthManager
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if !auth.resolved {
+            ProgressView().controlSize(.small)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !auth.isLoggedIn {
+            SignedOutState(auth: auth)
+        } else {
+            content()
+        }
+    }
+}
+
+/// Titled horizontal shelf — the one layout behind every carousel.
+struct Shelf<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+                .padding(.horizontal, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 16, content: content)
+                    .padding(.horizontal, 22)
+            }
+        }
+    }
+}
+
+/// Renders one Discover shelf, whichever kind it is.
+struct SectionShelf: View {
+    let section: HomeSection
+
+    var body: some View {
+        switch section {
+        case .tracks(let title, let tracks):
+            Carousel(title: title, tracks: tracks)
+        case .items(let title, let items):
+            BrowseCarousel(title: title, items: items)
+        }
+    }
+}
+
+/// NavigationStack over BrowseItems with the shared destination mapping and
+/// the pop action the in-header back buttons use.
+struct BrowseNavigationStack<Content: View>: View {
+    @State private var navPath: [BrowseItem] = []
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        NavigationStack(path: $navPath) {
+            content()
+                .navigationDestination(for: BrowseItem.self) { item in
+                    switch item.kind {
+                    case .artist:
+                        ArtistPageView(artistId: item.id, fallbackName: item.title,
+                                       fallbackArt: item.art(400))
+                    case .album, .playlist:
+                        AlbumPageView(item: item)
+                    }
+                }
+        }
+        .environment(\.popNavigation) {
+            if !navPath.isEmpty { navPath.removeLast() }
+        }
     }
 }
 
@@ -158,7 +244,7 @@ struct StateMessage: View {
 
 struct TrackRow: View {
     let track: Track
-    let number: Int
+    let number: Int?   // nil hides the index (e.g. History)
     let onPlay: () -> Void
 
     @State private var hovering = false
@@ -180,14 +266,16 @@ struct TrackRow: View {
                     Image(systemName: "play.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.primary)
-                } else {
+                } else if let number {
                     Text("\(number)")
                         .font(.system(size: 12, design: .default))
                         .foregroundStyle(.tertiary)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
-            .frame(width: 22)
+            .frame(width: 30)   // fits 3-digit indexes without wrapping
 
             // Artwork
             Artwork(url: track.art(96)) {
@@ -240,13 +328,13 @@ struct TrackRow: View {
             }
             .frame(width: 22)
 
-            if !track.durationText.isEmpty {
-                Text(track.durationText)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .frame(width: 44, alignment: .trailing)
-            }
+            // ALWAYS reserved, even when the duration is unknown — hiding it
+            // per-row let that row's heart drift out of the shared column.
+            Text(track.durationText)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 6)

@@ -200,12 +200,27 @@ final class DiscoverModel {
             chartsLoading = true
             chartSections = (try? await YTMusicClient.shared.charts()) ?? []
             chartsLoading = false
+            Self.prefetchArt(chartSections)
         case .newReleases:
             guard !newReleasesLoaded else { return }
             newReleasesLoaded = true
             newReleasesLoading = true
             newReleaseSections = (try? await YTMusicClient.shared.newReleases()) ?? []
             newReleasesLoading = false
+            Self.prefetchArt(newReleaseSections)
+        }
+    }
+
+    /// Decode every shelf's card art the moment the data lands — waiting
+    /// for the carousels' onAppear means images pop in on first visit.
+    private static func prefetchArt(_ sections: [HomeSection]) {
+        for section in sections {
+            switch section {
+            case .tracks(_, let tracks):
+                ArtworkCache.shared.prefetch(tracks.map { $0.art(300) })
+            case .items(_, let items):
+                ArtworkCache.shared.prefetch(items.map { $0.art(300) })
+            }
         }
     }
 
@@ -224,6 +239,10 @@ final class DiscoverModel {
         sections = await homeSections
         topArtists = await artists
         suggested = await picks
+
+        Self.prefetchArt(sections)
+        ArtworkCache.shared.prefetch(suggested.map { $0.art(300) })
+        ArtworkCache.shared.prefetch(topArtists.map { $0.art(300) })
 
         // Warm the top artists' full pages so tapping one is instant.
         let toWarm = topArtists
@@ -285,8 +304,21 @@ struct MainView: View {
     @State private var player = PlayerService.shared
     @AppStorage("velvet.wavesEnabled") private var wavesEnabled = true
 
+    // Launch gating: the wave splash stays up until the preloads land
+    // (with a minimum display so it never flashes, and a cap so a dead
+    // network can't trap the user on it).
+    @State private var discoverWarm = false
+    @State private var libraryWarm = false
+    @State private var minSplashElapsed = false
+    @State private var splashTimedOut = false
+
+    private var showLaunch: Bool {
+        !splashTimedOut && !(discoverWarm && libraryWarm && minSplashElapsed)
+    }
+
     var body: some View {
         ZStack {
+            Group {
             // One backdrop for the whole window — the icon's waves breathe
             // behind the sidebar and content alike.
             VisualEffect(material: .underWindowBackground).ignoresSafeArea()
@@ -337,6 +369,10 @@ struct MainView: View {
                 }
                 .animation(.snappy(duration: 0.3), value: player.current != nil)
             }
+            }
+            // The whole app hides while the splash shows: the window is made
+            // transparent then, so only the floating icon is visible.
+            .opacity(showLaunch ? 0 : 1)
 
             // Hidden playback engine.
             HiddenPlayerView()
@@ -348,6 +384,16 @@ struct MainView: View {
                                     set: { auth.showLogin = $0 })) {
             LoginSheet()
         }
+        // The launch icon sits over everything and crossfades away once
+        // the preloads land; the window itself is transparent meanwhile.
+        .overlay {
+            if showLaunch {
+                LaunchWaves()
+                    .transition(.opacity)
+            }
+        }
+        .background(WindowTransparency(transparent: showLaunch))
+        .animation(.easeInOut(duration: 0.5), value: showLaunch)
         // Warm every top-level page at launch so switching tabs or sidebar
         // sections never shows a loading state.
         .task {
@@ -355,8 +401,18 @@ struct MainView: View {
             async let charts: Void = discoverModel.load(.charts)
             async let fresh: Void = discoverModel.load(.newReleases)
             _ = await (home, charts, fresh)
+            discoverWarm = true
         }
-        .task(id: auth.isLoggedIn) {
+        .task {
+            try? await Task.sleep(for: .seconds(1.6))
+            minSplashElapsed = true
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(8))
+            splashTimedOut = true
+        }
+        .task(id: "\(auth.resolved)-\(auth.isLoggedIn)") {
+            guard auth.resolved else { return }
             if auth.isLoggedIn {
                 async let liked: Void = likedModel.reload()
                 async let playlists: Void = playlistsModel.reload()
@@ -367,6 +423,7 @@ struct MainView: View {
             } else {
                 LikesStore.shared.reset()
             }
+            libraryWarm = true
         }
     }
 }
@@ -379,25 +436,12 @@ struct Sidebar: View {
     var onReTap: () -> Void = {}
     @State private var showSettings = false
     @State private var hoverAccount = false
-    @State private var hoverSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Title bar spacer (hidden titlebar) + wordmark
-            HStack(spacing: 7) {
-                // The real app icon; its bitmap already carries the squircle
-                // shape and standard margins, so just render it slightly large.
-                Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
-                    .resizable()
-                    .frame(width: 27, height: 27)
-                Text("Velvet")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.top, 34)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 18)
-
+            // No header wordmark — the brand row lives in the footer.
+            // Top padding clears the traffic lights.
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(NavSection.home) { s in
                     SidebarItem(section: s, isSelected: section == s) {
@@ -419,6 +463,9 @@ struct Sidebar: View {
                 }
             }
             .padding(.horizontal, 10)
+            // Matches the content column's 30pt top so the Discover row
+            // sits level with the Home/Charts tab row.
+            .padding(.top, 30)
 
             Spacer()
 
@@ -441,18 +488,23 @@ struct Sidebar: View {
                         Text(auth.accountName ?? "Signed in")
                         if let handle = auth.accountHandle { Text(handle) }
                         Divider()
+                        Button("Settings…") { showSettings = true }
+                        Divider()
                         Button("Sign Out", role: .destructive) {
                             Task { await auth.signOut() }
                         }
                     } label: {
                         SidebarFooterRow(hovering: hoverAccount) {
+                            // 18pt image centered in the 20pt glyph column,
+                            // matching the nav symbols' optical size.
                             Artwork(url: auth.accountPhoto) {
                                 Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 16))
                                     .foregroundStyle(.secondary)
                             }
-                            .frame(width: 20, height: 20)
+                            .frame(width: 18, height: 18)
                             .clipShape(Circle())
+                            .frame(width: 20)
                             Text(auth.accountName ?? "Signed in")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Color.primary.opacity(0.85))
@@ -486,27 +538,42 @@ struct Sidebar: View {
                     .onHover { hoverAccount = $0 }
                 }
 
-                Button {
-                    showSettings = true
-                } label: {
-                    SidebarFooterRow(hovering: hoverSettings) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 20)
-                        Text("Settings")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.primary.opacity(0.85))
-                        Spacer()
-                    }
+                // Brand row: the wordmark lives down here; Settings moved
+                // into the account dropdown above.
+                SidebarFooterRow(hovering: false) {
+                    AppIconMark(size: 18)
+                        .frame(width: 20)
+                    Text("Velvet")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .onHover { hoverSettings = $0 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .sheet(isPresented: $showSettings) { SettingsSheet() }
         }
+    }
+}
+
+/// The app icon rendered crisp at small sizes: the icon bitmap carries the
+/// standard macOS tile margins (~20% of the canvas), so drawn naively at
+/// 18pt the visible tile is ~14pt of rescaled low-res rep — blurry. This
+/// scales the margins away so the tile fills the frame, with high-quality
+/// downsampling.
+struct AppIconMark: View {
+    let size: CGFloat
+    private static let marginScale: CGFloat = 1024.0 / 824.0
+
+    var body: some View {
+        ZStack {
+            Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size * Self.marginScale, height: size * Self.marginScale)
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
     }
 }
 
@@ -591,58 +658,6 @@ struct SidebarItem: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-    }
-}
-
-// MARK: - Search page
-
-struct SearchView: View {
-    @Bindable var model: SearchModel
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Search field in the toolbar area
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                TextField("Search songs and artists", text: $model.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .focused($focused)
-                if model.isLoading {
-                    ProgressView().controlSize(.small).scaleEffect(0.8)
-                } else if !model.query.isEmpty {
-                    Button { model.query = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-            )
-            .frame(maxWidth: 340)
-            .padding(.horizontal, 22)
-            .padding(.top, 30)
-            .padding(.bottom, 14)
-
-            TrackList(tracks: model.results,
-                      title: "Search",
-                      subtitle: model.results.isEmpty ? nil : "\(model.results.count) songs",
-                      emptyIcon: "magnifyingglass",
-                      emptyTitle: model.query.isEmpty ? "Search YouTube Music" : "No Results",
-                      emptyText: model.query.isEmpty
-                        ? "Find any song or artist."
-                        : (model.isLoading ? "Searching…" : "Try a different search."),
-                      error: model.error)
-        }
-        .onAppear { focused = true }
     }
 }
 

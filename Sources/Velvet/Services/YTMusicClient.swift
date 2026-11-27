@@ -312,13 +312,6 @@ final class YTMusicClient {
     func likedSongs() async throws -> [Track] {
         var json = try await request("browse", body: ["browseId": "VLLM"])
         var tracks = Self.parseTracks(json)
-        if tracks.isEmpty, let raw = json.raw {
-            // Diagnostic: keep the last empty-parse response for inspection.
-            if let data = try? JSONSerialization.data(withJSONObject: raw) {
-                try? data.write(to: URL(fileURLWithPath: "/tmp/velvet-liked-debug.json"))
-            }
-        }
-
         var seen = Set(tracks.map(\.id))
         var pages = 0
         while let token = Self.continuationToken(json), pages < 50 {

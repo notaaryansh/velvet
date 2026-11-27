@@ -8,11 +8,23 @@ final class ArtistPageModel {
     var page: YTMusicClient.ArtistPage?
     var isLoading = true
 
+    /// Prefill from the cache at construction so the FIRST rendered frame
+    /// already has every row — .task runs after first render, which left
+    /// a ~100ms empty-list flash even on cache hits.
+    init(prefill: YTMusicClient.ArtistPage? = nil) {
+        if let prefill {
+            page = prefill
+            isLoading = false
+        }
+    }
+
     func load(_ id: String) async {
-        // Cached page renders instantly; a quiet refresh follows.
-        if let cached = PageCache.shared.artists[id] {
+        // A fresh page from the moving window renders instantly with NO
+        // network touch at all; only stale entries refresh quietly.
+        if let (cached, isFresh) = PageCache.shared.artist(id) {
             page = cached
             isLoading = false
+            if isFresh { return }
         } else {
             isLoading = true
         }
@@ -26,7 +38,7 @@ final class ArtistPageModel {
                                                  topSongs: fresh.topSongs, sections: fresh.sections)
             }
             page = fresh
-            PageCache.shared.artists[id] = fresh
+            PageCache.shared.setArtist(fresh, for: id)
         }
         isLoading = false
     }
@@ -56,7 +68,19 @@ struct HeaderBackButton: View {
 struct ArtistPageView: View {
     let artistId: String
     let fallbackName: String
-    @State private var model = ArtistPageModel()
+    /// Art from the card that navigated here — the API sometimes omits the
+    /// artist page's own header image, which left a blank circle.
+    let fallbackArt: URL?
+    @State private var model: ArtistPageModel
+
+    @MainActor
+    init(artistId: String, fallbackName: String, fallbackArt: URL? = nil) {
+        self.artistId = artistId
+        self.fallbackName = fallbackName
+        self.fallbackArt = fallbackArt
+        _model = State(initialValue: ArtistPageModel(
+            prefill: PageCache.shared.artist(artistId)?.page))
+    }
 
     var body: some View {
         ScrollView(showsIndicators: true) {
@@ -76,7 +100,7 @@ struct ArtistPageView: View {
                                         PlayerService.shared.play(tracks: page.topSongs, at: i)
                                     }
                                     if i < page.topSongs.count - 1 {
-                                        Divider().padding(.leading, 84).opacity(0.4)
+                                        RowDivider()
                                     }
                                 }
                             }
@@ -104,7 +128,7 @@ struct ArtistPageView: View {
     private var header: some View {
         HStack(spacing: 18) {
             HeaderBackButton()
-            Artwork(url: model.page?.thumbnail.flatMap { thumbURL($0) }) {
+            Artwork(url: fallbackArt ?? model.page?.thumbnail.flatMap { thumbURL($0) }) {
                 Circle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "person.fill").font(.system(size: 30)).foregroundStyle(.tertiary))
             }
@@ -154,11 +178,20 @@ final class AlbumPageModel {
     var page: YTMusicClient.AlbumPage?
     var isLoading = true
 
+    init(prefill: YTMusicClient.AlbumPage? = nil) {
+        if let prefill {
+            page = prefill
+            isLoading = false
+        }
+    }
+
     func load(_ id: String) async {
-        // Cached page renders instantly; a quiet refresh follows.
-        if let cached = PageCache.shared.albums[id] {
+        // A fresh page from the moving window renders instantly with NO
+        // network touch at all; only stale entries refresh quietly.
+        if let (cached, isFresh) = PageCache.shared.album(id) {
             page = cached
             isLoading = false
+            if isFresh { return }
         } else {
             isLoading = true
         }
@@ -168,7 +201,7 @@ final class AlbumPageModel {
                                                 thumbnail: keep, tracks: fresh.tracks)
             }
             page = fresh
-            PageCache.shared.albums[id] = fresh
+            PageCache.shared.setAlbum(fresh, for: id)
         }
         isLoading = false
     }
@@ -176,7 +209,14 @@ final class AlbumPageModel {
 
 struct AlbumPageView: View {
     let item: BrowseItem
-    @State private var model = AlbumPageModel()
+    @State private var model: AlbumPageModel
+
+    @MainActor
+    init(item: BrowseItem) {
+        self.item = item
+        _model = State(initialValue: AlbumPageModel(
+            prefill: PageCache.shared.album(item.id)?.page))
+    }
 
     var body: some View {
         ScrollView(showsIndicators: true) {
@@ -189,7 +229,7 @@ struct AlbumPageView: View {
                                 PlayerService.shared.play(tracks: tracks, at: i)
                             }
                             if i < tracks.count - 1 {
-                                Divider().padding(.leading, 84).opacity(0.4)
+                                RowDivider()
                             }
                         }
                     }
@@ -213,7 +253,10 @@ struct AlbumPageView: View {
                 Spacer(minLength: 0)
             }
             .frame(height: 140)
-            Artwork(url: (model.page?.thumbnail).flatMap { URL(string: $0) } ?? item.art(400)) {
+            // Prefer the SAME art the list row already loaded (just larger),
+            // so opening a playlist never swaps to a different URL and
+            // re-fetches; the page's own thumbnail is only a fallback.
+            Artwork(url: item.art(400) ?? (model.page?.thumbnail).flatMap { URL(string: $0) }) {
                 Rectangle().fill(Velvet.artPlaceholder)
                     .overlay(Image(systemName: "square.stack").font(.system(size: 30)).foregroundStyle(.tertiary))
             }
@@ -283,18 +326,12 @@ struct BrowseCarousel: View {
     let items: [BrowseItem]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 19, weight: .bold)).padding(.horizontal, 22)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            BrowseCard(item: item)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        Shelf(title: title) {
+            ForEach(items) { item in
+                NavigationLink(value: item) {
+                    BrowseCard(item: item)
                 }
-                .padding(.horizontal, 22)
+                .buttonStyle(.plain)
             }
         }
         .onAppear { ArtworkCache.shared.prefetch(items.map { $0.art(300) }) }

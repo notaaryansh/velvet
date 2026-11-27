@@ -19,6 +19,9 @@ final class PlayerService: NSObject {
     var queue: [Track] = []
     var index: Int = 0
     var isPlaying = false
+    /// True from pressing play until audio actually starts — drives the
+    /// spinner in the transport.
+    var isBuffering = false
     var adPlaying = false
     var progress: Double = 0
     var duration: Double = 0
@@ -116,6 +119,7 @@ final class PlayerService: NSObject {
         guard current != nil else { return }
         if isPlaying {
             userPaused = true
+            isBuffering = false
             eval("document.querySelector('video')?.pause()")
         } else {
             userPaused = false
@@ -127,6 +131,7 @@ final class PlayerService: NSObject {
         guard hasNext else {
             eval("document.querySelector('video')?.pause()")
             isPlaying = false
+            isBuffering = false
             return
         }
         index += 1
@@ -190,9 +195,9 @@ final class PlayerService: NSObject {
         progress = 0
         duration = 0
         isPlaying = false
+        isBuffering = true
         userPaused = false
         lastLoadAt = Date()
-        EventBus.shared.post(.trackChanged(track))
 
         let wv = ensureWebView()
         let url = URL(string: "https://music.youtube.com/watch?v=\(track.id)")!
@@ -246,6 +251,7 @@ final class PlayerService: NSObject {
 
         if tick.hasVideo {
             isPlaying = !tick.paused
+            if !tick.paused || tick.time > 0.3 { isBuffering = false }
             if tick.duration.isFinite, tick.duration > 1,
                durationLooksLikeCurrentTrack(tick.duration) {
                 duration = tick.duration
@@ -290,9 +296,6 @@ final class PlayerService: NSObject {
           var v = document.querySelector('video');
           var vid = new URLSearchParams(location.search).get('v') || '';
           var ad = !!document.querySelector('.ad-showing, .ad-interrupting, ytmusic-player[ad-showing]');
-          var title = '', artist = '';
-          var md = navigator.mediaSession && navigator.mediaSession.metadata;
-          if (md) { title = md.title || ''; artist = md.artist || ''; }
           window.webkit.messageHandlers.velvet.postMessage({
             hasVideo: !!v,
             t: v ? (v.currentTime || 0) : 0,
@@ -300,7 +303,7 @@ final class PlayerService: NSObject {
             paused: v ? v.paused : true,
             ended: v ? v.ended : false,
             ad: ad,
-            vid: vid, title: title, artist: artist
+            vid: vid
           });
         } catch (e) {}
       }, 500);
@@ -314,7 +317,6 @@ extension PlayerService: WKNavigationDelegate {
     nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor in
             guard self.current != nil else { return }
-            EventBus.shared.post(.playbackLoaded(videoId: self.current?.id ?? ""))
             // Persistent start nudges — restricted tracks (e.g. Prince) need
             // several tries and a click on YTM's own play button.
             for delay in [0.6, 1.4, 2.6, 4.0, 6.0, 8.5] {

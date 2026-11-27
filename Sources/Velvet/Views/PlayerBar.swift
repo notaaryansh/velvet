@@ -13,14 +13,17 @@ struct PlayerBar: View {
             Divider().opacity(0.6)
             HStack(spacing: 14) {
                 nowPlaying
-                    .frame(width: 240, alignment: .leading)
+                    // Tight fixed column: flexible sizing kept ballooning to
+                    // its cap and leaving a dead gap before the transport.
+                    .frame(width: 180, alignment: .leading)
 
                 transport
 
+                // Flexible scrubber soaks up the slack so the bar has no
+                // dead gaps between clusters.
                 centerScrubber
-                    .frame(maxWidth: 420)
-
-                Spacer(minLength: 8)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 6)
 
                 volumeControl
 
@@ -104,9 +107,15 @@ struct PlayerBar: View {
             .disabled(player.current == nil)
 
             Button { player.togglePlay() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 20))
-                    .frame(width: 24)
+                ZStack {
+                    if player.isBuffering {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 20))
+                    }
+                }
+                .frame(width: 24)
             }
             .buttonStyle(.plain)
             .disabled(player.current == nil)
