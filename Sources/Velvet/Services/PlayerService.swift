@@ -29,6 +29,11 @@ final class PlayerService: NSObject {
     var shuffleEnabled = false
     var lastTickAt: Date = .distantPast
     @ObservationIgnored private var unshuffledQueue: [Track] = []
+    /// Latched while an end-of-song advance is in flight: ended ticks keep
+    /// arriving every 500ms during the async suggestions fetch, and without
+    /// the latch next() ran once per tick, racing the queue index away from
+    /// the playing video (frozen playhead).
+    @ObservationIgnored private var advancing = false
     /// True after the user explicitly paused; the auto-start nudges must
     /// never override this, only an explicit play clears it.
     @ObservationIgnored private var userPaused = false
@@ -272,6 +277,7 @@ final class PlayerService: NSObject {
         isPlaying = false
         isBuffering = true
         userPaused = false
+        advancing = false
         lastLoadAt = Date()
 
         let wv = ensureWebView()
@@ -316,10 +322,12 @@ final class PlayerService: NSObject {
         // fire `ended` immediately with currentTime snapped to the end — the
         // old cause of "plays a few seconds, then skips".
         if tick.ended,
+           !advancing,
            tick.duration > 1,
            tick.time >= tick.duration - 2,
            durationLooksLikeCurrentTrack(tick.duration),
            sinceLoad >= tick.duration - 6 {
+            advancing = true
             next()
             return
         }
