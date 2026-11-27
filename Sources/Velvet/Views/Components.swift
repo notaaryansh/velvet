@@ -2,16 +2,28 @@ import SwiftUI
 
 // MARK: - Ambient wave background
 
-/// The app-icon waves as living ambience: layered wine-tinted waves drifting
-/// very slowly behind the content. Alphas are tiny so it reads as a slight
-/// red tint over the dark backdrop, not a picture.
+/// The app-icon waves as a STATIC velvet backdrop: drawn once at thumbnail
+/// size, blurred, and scaled to the window. No animation, no per-frame
+/// cost — it renders exactly once per window resize.
 struct WavesBackground: View {
+    private static let base = CGSize(width: 280, height: 190)
+
     var body: some View {
-        // 12fps is plenty — the drift is ultra slow, and each frame re-renders
-        // through the 55pt blur, so frame rate is the main idle CPU cost.
-        TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
-            Canvas { ctx, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+        GeometryReader { geo in
+            canvas
+                .frame(width: Self.base.width, height: Self.base.height)
+                .blur(radius: 9)
+                .scaleEffect(x: geo.size.width / Self.base.width * 1.12,
+                             y: geo.size.height / Self.base.height * 1.12)
+                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var canvas: some View {
+        Canvas { ctx, size in
+                let t = 1.7   // frozen phase — pick of the nicest composition
+                let k = size.height / 700   // amplitude scale for the tiny canvas
 
                 func wave(base: CGFloat, amp1: CGFloat, amp2: CGFloat,
                           speed: Double, phase: Double, color: Color) {
@@ -35,17 +47,15 @@ struct WavesBackground: View {
                          with: .color(Color(hex: 0x2A0A1E).opacity(0.18)))
 
                 // Back → front, sinking into deeper wine like the icon.
-                wave(base: 0.30, amp1: 34, amp2: 12, speed: 0.050, phase: 0.8,
+                wave(base: 0.30, amp1: 34 * k, amp2: 12 * k, speed: 0.050, phase: 0.8,
                      color: Color(hex: 0xA84860).opacity(0.085))
-                wave(base: 0.52, amp1: 42, amp2: 15, speed: 0.034, phase: 2.9,
+                wave(base: 0.52, amp1: 42 * k, amp2: 15 * k, speed: 0.034, phase: 2.9,
                      color: Color(hex: 0x8C1F3C).opacity(0.110))
-                wave(base: 0.72, amp1: 34, amp2: 12, speed: 0.042, phase: 5.1,
+                wave(base: 0.72, amp1: 34 * k, amp2: 12 * k, speed: 0.042, phase: 5.1,
                      color: Color(hex: 0x5A0A24).opacity(0.140))
-                wave(base: 0.88, amp1: 26, amp2: 10, speed: 0.028, phase: 1.7,
+                wave(base: 0.88, amp1: 26 * k, amp2: 10 * k, speed: 0.028, phase: 1.7,
                      color: Color(hex: 0x33020F).opacity(0.160))
-            }
         }
-        .allowsHitTesting(false)
     }
 }
 
