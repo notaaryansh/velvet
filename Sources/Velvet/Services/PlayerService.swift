@@ -323,7 +323,19 @@ final class PlayerService: NSObject {
         // song under a different id), stop fighting and just let it play so we
         // don't loop. We NEVER call next() here — that was the skip bug.
         if !tick.videoId.isEmpty, tick.videoId != cur.id, sinceLoad > 10 {
+            // YTM is gapless: at a song's end it swaps straight to the next
+            // video and `ended` never sticks. A video change right after we
+            // observed the final seconds IS the natural end — advance our
+            // own queue instead of re-asserting (which restarted the song,
+            // then lost the fight and froze the UI).
+            if nearEndObserved, !advancing {
+                plog("advance: YTM rolled to \(tick.videoId) at end of \(cur.title) — advancing our queue")
+                advancing = true
+                next()
+                return
+            }
             if reassertCount < 1, Date().timeIntervalSince(lastReassertAt) > 8 {
+                plog("reassert: drifted to \(tick.videoId) mid-song, steering back to \(cur.title)")
                 reassertCount += 1
                 lastReassertAt = Date()
                 load(cur)
