@@ -83,9 +83,9 @@
   .shot {
     position: relative;
     z-index: 1;
-    max-width: 880px;
+    max-width: 1240px;
+    width: 92%;
     margin: 56px auto 0;
-    padding: 0 24px;
   }
   .shot img {
     width: 100%;
@@ -126,33 +126,13 @@
   @media (prefers-reduced-motion: reduce) {
     .wave svg { animation: none; }
   }
-  .hero-end {
+  footer {
     position: relative;
     z-index: 1;
-    height: 72px;
-  }
-
-  .wine {
-    background: var(--wave-front);
-    color: var(--on-wine-muted);
-    padding: 8px 0 8px;
-  }
-  .points {
-    margin: 0 auto;
-    max-width: 34em;
-    text-align: left;
-    padding: 40px 24px 8px;
-  }
-  .points p { margin-bottom: 18px; }
-  .points p strong { color: var(--on-wine); font-weight: 600; }
-  .points a { color: var(--on-wine); }
-  footer {
-    margin: 32px auto 0;
-    max-width: 880px;
-    padding: 24px 24px 40px;
-    border-top: 1px solid rgba(242,228,228,.18);
+    padding: 48px 24px 36px;
     text-align: center;
     font-size: .9rem;
+    color: var(--on-wine-muted);
   }
   footer a { color: var(--on-wine); }
   a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
@@ -198,17 +178,9 @@
   <div class="shot">
     <img src="screenshot.png" alt="Velvet showing the Discover page with recently played albums and a song playing at the bottom">
   </div>
-  <div class="hero-end"></div>
-</section>
-
-<section class="wine">
-  <div class="points">
-    <p><strong>It feels at home on your Mac.</strong> Not a website in a window. It opens fast, stays light, and pages show up instantly.</p>
-    <p><strong>The music keeps going.</strong> Close the window and the song keeps playing. There is also a small mini player you can drag anywhere.</p>
-    <p><strong>Want something it does not do yet?</strong> <a href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a> on GitHub. Every request gets read.</p>
-  </div>
   <footer>
-    Free and open source. Needs macOS 15 or later. <a href="https://github.com/notaaryansh/velvet">GitHub</a>
+    Free and open source under AGPL-3.0. Needs macOS 15 or later.<br>
+    <a href="https://github.com/notaaryansh/velvet">GitHub</a> &nbsp; <a href="https://github.com/notaaryansh/velvet/issues/new">Request a feature</a>
   </footer>
 </section>
 </body>

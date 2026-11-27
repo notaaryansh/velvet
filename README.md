@@ -41,3 +41,7 @@ open dist/Velvet.app
 ```
 
 Requires macOS 15+ and a Swift 6.2 toolchain. The app icon is generated from code: `swift Scripts/make-icon.swift icon.png`.
+
+## License
+
+AGPL-3.0. See [LICENSE](LICENSE).
