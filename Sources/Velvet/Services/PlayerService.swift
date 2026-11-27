@@ -34,6 +34,21 @@ final class PlayerService: NSObject {
     /// the latch next() ran once per tick, racing the queue index away from
     /// the playing video (frozen playhead).
     @ObservationIgnored private var advancing = false
+    /// True once ticks showed real playback inside the last ~8s of the
+    /// track — the trustworthy "this song genuinely reached its end"
+    /// signal, immune to manual seeking (unlike wall-clock heuristics).
+    @ObservationIgnored private var nearEndObserved = false
+    @ObservationIgnored private var loggedMismatch = false
+
+    /// Debug trace for playback decisions (tail -f /tmp/velvet-player.log).
+    private func plog(_ msg: String) {
+        let line = "\(Date()) \(msg)\n"
+        if let h = FileHandle(forWritingAtPath: "/tmp/velvet-player.log") {
+            h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile()
+        } else {
+            try? line.write(toFile: "/tmp/velvet-player.log", atomically: true, encoding: .utf8)
+        }
+    }
     /// True after the user explicitly paused; the auto-start nudges must
     /// never override this, only an explicit play clears it.
     @ObservationIgnored private var userPaused = false
@@ -278,7 +293,10 @@ final class PlayerService: NSObject {
         isBuffering = true
         userPaused = false
         advancing = false
+        nearEndObserved = false
+        loggedMismatch = false
         lastLoadAt = Date()
+        plog("load: \(track.title) (\(track.id)) queue=\(queue.count) idx=\(index)")
 
         let wv = ensureWebView()
         let url = URL(string: "https://music.youtube.com/watch?v=\(track.id)")!
@@ -313,7 +331,13 @@ final class PlayerService: NSObject {
             return
         }
 
-        guard tick.videoId == cur.id || tick.videoId.isEmpty else { return }
+        guard tick.videoId == cur.id || tick.videoId.isEmpty else {
+            if !loggedMismatch {
+                loggedMismatch = true
+                plog("dropping ticks: playing vid=\(tick.videoId) but cur=\(cur.id) (\(cur.title))")
+            }
+            return
+        }
 
         // Advance only when the *song* truly finished. A track cannot end
         // before roughly its own duration has elapsed in real wall-clock time,
@@ -321,20 +345,30 @@ final class PlayerService: NSObject {
         // tracks (e.g. restricted Prince songs) that load correct metadata but
         // fire `ended` immediately with currentTime snapped to the end — the
         // old cause of "plays a few seconds, then skips".
-        if tick.ended,
-           !advancing,
-           tick.duration > 1,
-           tick.time >= tick.duration - 2,
-           durationLooksLikeCurrentTrack(tick.duration),
-           sinceLoad >= tick.duration - 6 {
-            advancing = true
-            next()
+        if tick.ended, tick.duration > 1, tick.time >= tick.duration - 2,
+           durationLooksLikeCurrentTrack(tick.duration) {
+            // Advance on OBSERVED completion: we must have watched playback
+            // reach the final stretch. Wall-clock guards broke after manual
+            // seeks (advance never fired; YTM autoplayed underneath and the
+            // UI froze on mismatched ticks). sinceLoad>8 still defeats
+            // restricted tracks that fire `ended` instantly on load.
+            if !advancing, nearEndObserved, sinceLoad > 8 {
+                plog("advance: ended observed for \(cur.title)")
+                advancing = true
+                next()
+            } else if !advancing {
+                plog("advance blocked: nearEnd=\(nearEndObserved) sinceLoad=\(Int(sinceLoad)) for \(cur.title)")
+            }
             return
         }
 
         if tick.hasVideo {
             isPlaying = !tick.paused
             if !tick.paused || tick.time > 0.3 { isBuffering = false }
+            if tick.duration > 1, tick.time > tick.duration - 8,
+               durationLooksLikeCurrentTrack(tick.duration) {
+                nearEndObserved = true
+            }
             if tick.duration.isFinite, tick.duration > 1,
                durationLooksLikeCurrentTrack(tick.duration) {
                 duration = tick.duration
