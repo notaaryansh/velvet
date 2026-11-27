@@ -64,7 +64,6 @@
 
   .hero {
     position: relative;
-    overflow: hidden;
     text-align: center;
     padding-top: 48px;
   }
@@ -94,12 +93,13 @@
     display: block;
   }
   .waves {
-    position: absolute;
+    position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 46%;
+    height: 38vh;
     min-height: 240px;
+    z-index: 0;
     pointer-events: none;
   }
   .wave {
@@ -129,7 +129,7 @@
   footer {
     position: relative;
     z-index: 1;
-    padding: 48px 24px 36px;
+    padding: 48px 24px 10vh;
     text-align: center;
     font-size: .9rem;
     color: var(--on-wine-muted);
