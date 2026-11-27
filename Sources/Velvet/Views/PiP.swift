@@ -43,6 +43,8 @@ final class PiPController {
     func hide() {
         panel?.orderOut(nil)
         isVisible = false
+        // Popping back in means returning to the app.
+        AppDelegate.showMainWindow()
     }
 }
 
